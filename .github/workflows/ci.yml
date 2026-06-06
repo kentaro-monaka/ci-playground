@@ -4,7 +4,11 @@ jobs:
   marketplace_action:
     runs-on: ubuntu-latest
     steps: 
-      - name: marketplace_action
+      - name: checkout
         uses: actions/checkout@v4
+      
+      - name: setup-uv
         uses: astral-sh/setup-uv@v6
+      
+      - name: uv-lock
         run: uv sync --frozen --all-groups
