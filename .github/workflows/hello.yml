@@ -1,8 +1,10 @@
-name: hello
+name: CI
 on: push
 jobs:
-  hello_echo:
+  marketplace_action:
     runs-on: ubuntu-latest
     steps: 
-      - name: hello_echo
-        run: echo "Hello, GitHub Actions"
+      - name: marketplace_action
+        uses: actions/checkout@v4
+        uses: astral-sh/setup-uv@v6
+        run: uv sync --frozen --all-groups
