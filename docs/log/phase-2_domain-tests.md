@@ -1,4 +1,4 @@
-# Phase 1: 最小構成のCI構築
+# Phase 2: ドメイン層データクラス定義とテスト
 
 - **日付**: 2026-06-07
 - **関連コミット/PR**:
@@ -20,7 +20,11 @@
 - テストの関数は何をテストしているかがわかるように英文をスネークケースで接続して記載する（例：test_should_not_allow_value_modification）
 
 ## 詰まったところ
-- 今回は特になし
+### 詰まり1: NaN シンボルが Python に存在しない
+- **症状**: `CurrentReading(value=NaN)`で`F821 Undefined name 'NaN'`
+- **原因**: JavaScriptと混同。Pythonには `Nan` 予約語がない
+- **解決**: `float("nan")` で生成。 `math.isginite()` で NaN/±Inf 一括検査
+- **学び**: 言語間でNaN表現は違う。Pythonでは「特別な float 値」として扱う
 
 ## 結果
 - ドメイン層のデータクラスを定義し、ドメイン層のテストをCIに組み込むことができた
