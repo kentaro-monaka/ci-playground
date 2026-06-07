@@ -2,6 +2,7 @@
 
 - **日付**: 2026-06-06
 - **関連コミット/PR**:
+    - 10015eb Phase 0: project scaffolding (uv, DDD layered structure, doc template)
 - **所要時間**:2時間
 
 ## 実施内容
