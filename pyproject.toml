@@ -12,3 +12,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.15.16",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
