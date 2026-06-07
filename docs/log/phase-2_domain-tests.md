@@ -22,8 +22,8 @@
 ## 詰まったところ
 ### 詰まり1: NaN シンボルが Python に存在しない
 - **症状**: `CurrentReading(value=NaN)`で`F821 Undefined name 'NaN'`
-- **原因**: JavaScriptと混同。Pythonには `Nan` 予約語がない
-- **解決**: `float("nan")` で生成。 `math.isginite()` で NaN/±Inf 一括検査
+- **原因**: JavaScriptと混同。Pythonには `NaN` 予約語がない
+- **解決**: `float("nan")` で生成。 `math.isfinite()` で NaN/±Inf 一括検査
 - **学び**: 言語間でNaN表現は違う。Pythonでは「特別な float 値」として扱う
 
 ## 結果
