@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import math
 
 
 @dataclass(frozen=True)  # 不変 + 自動で __eq__/__hash__/__repr__ を生成
