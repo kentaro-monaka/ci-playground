@@ -17,7 +17,7 @@ class TestTemperatureReading:
         s = TemperatureReading(value=30.0)
         assert r != s
 
-    def test_should_reject_values_differ(self):
+    def test_should_reject_value_below_absolute_zero(self):
         with pytest.raises(ValueError):  # 値の検証エラー
             TemperatureReading(value=-273.2)
 
