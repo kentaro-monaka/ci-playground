@@ -2,6 +2,10 @@
 
 - **日付**: 2026-06-07
 - **関連コミット/PR**:
+    - dfdafaa feat(domain): SensorType, Range, SensorId, DeviceIdとテストを追加
+    - 37ea8ce docs(log): Phase 2 のログを修正、次のステップを変更
+    - 5a30691 docs(log): Phase 2 のログの誤記修正、詰まりポイント追加
+    - 9b46074 docs(log): Phase 2 ログを作成
     - 16c4e2f feat(test): 電流データクラスに対する無限大、NaN例外テスト追加
     - 1b6b1aa fix(domain): 電流データクラスのmathインポート忘れ対応
     - eacb6a2 feat: 電流データクラスに不正値を弾くロジックを追加
@@ -12,12 +16,18 @@
 ## 実施内容
 - /src/ci_playground/domain/readings.pyに温度、電圧、電流のデータクラスを追加
 - /tests/unit/domainに温度、電圧、電流のデータクラス用のテストスクリプトを追加
+- /src/ci_playground/domain/values.pyにRange、SensorId, DeviceIdのデータクラスを追加
+- /src/ci_playground/domain/values.pyにSensorTypeの文字列列挙型を追加
+- /tests/unit/domainにvalues.pyのテストスクリプトを追加
 
 ## ポイント（学んだこと・選択の理由）
 - @dataclassのデコレータを使用することで、自動で __eq__/__hash__/__repr__ を生成
 - @dataclass(frozen=True) でデータクラスを不変にすることができる
 - pytestで例外を想定する箇所は`with pytest.raises(ValueError):`の後に例外をスローする処理を書くことで試験として登録できる
 - テストの関数は何をテストしているかがわかるように英文をスネークケースで接続して記載する（例：test_should_not_allow_value_modification）
+- 真偽値を返す関数の場合は、真のとき：assert (関数)、偽のとき：assert not (関数) で良い。(== trueは冗長のためruffに指摘される)
+- .strip()で文字列から空白を除去して、空文字判定を楽に行うことができる
+- EnumのメンバアクセスはSensorType.TEMPERATUREのようにメソッドのように呼び出すことができる
 
 ## 詰まったところ
 ### 詰まり1: NaN シンボルが Python に存在しない
