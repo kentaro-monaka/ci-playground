@@ -15,6 +15,18 @@ class TestCurrentReading:
         r = CurrentReading(value=-1000.0)
         assert r.value == -1000.0
 
+    def test_should_reject_nan(self):
+        with pytest.raises(ValueError):
+            CurrentReading(value=float("nan"))
+
+    def test_should_reject_positive_infinity(self):
+        with pytest.raises(ValueError):
+            CurrentReading(value=float("inf"))
+
+    def test_should_reject_negative_infinity(self):
+        with pytest.raises(ValueError):
+            CurrentReading(value=float("-inf"))
+
     def test_equality_when_values_match(self):
         r = CurrentReading(value=500.0)
         s = CurrentReading(value=500.0)
