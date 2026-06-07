@@ -22,3 +22,7 @@ class VoltageReading:
 @dataclass(frozen=True)  # 不変 + 自動で __eq__/__hash__/__repr__ を生成
 class CurrentReading:
     value: float
+
+    def __post_init__(self):
+        if not math.isfinite(self.value):
+            raise ValueError(f"無限大やNaNを示す電流値は不正です: {self.value}")
