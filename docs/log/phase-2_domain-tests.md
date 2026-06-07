@@ -30,4 +30,4 @@
 - ドメイン層のデータクラスを定義し、ドメイン層のテストをCIに組み込むことができた
 
 ## 次の一歩
-- Phase 3: DB仮想化
+-  SensorType, Range, SensorId, DeviceId の実装
