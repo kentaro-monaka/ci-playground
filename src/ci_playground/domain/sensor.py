@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 from ci_playground.domain.values import SensorId, SensorType, Range
-from ci_playground.domain.readings import TemperatureReading, VoltageReading, CurrentReading
+from ci_playground.domain.readings import (
+    TemperatureReading,
+    VoltageReading,
+    CurrentReading,
+)
 
 Reading = TemperatureReading | VoltageReading | CurrentReading
 _TYPE_READING_MAP = {
@@ -9,13 +13,13 @@ _TYPE_READING_MAP = {
     SensorType.CURRENT: CurrentReading,
 }
 
+
 @dataclass(eq=False)
 class Sensor:
     id: SensorId
     type: SensorType
     allowed_range: Range
     last_reading: Reading | None = None
-
 
     def record(self, reading: Reading) -> None:
         expected_class = _TYPE_READING_MAP[self.type]
@@ -31,11 +35,11 @@ class Sensor:
         if self.last_reading is None:
             return False
         return not self.allowed_range.contains(self.last_reading.value)
-    
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Sensor):
             return NotImplemented
         return self.id == other.id
-    
+
     def __hash__(self) -> int:
         return hash(self.id)
