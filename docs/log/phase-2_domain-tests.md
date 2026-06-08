@@ -1,7 +1,9 @@
 # Phase 2: ドメイン層データクラス定義とテスト
 
-- **日付**: 2026-06-07
+- **日付**: 2026-06-07, 2026-06-08
 - **関連コミット/PR**:
+    - 9526040 fix(domain): 追加部分のruff format
+    - 3aa6169 feat(domain): Sensorエンティティとテストを追加
     - dfdafaa feat(domain): SensorType, Range, SensorId, DeviceIdとテストを追加
     - 37ea8ce docs(log): Phase 2 のログを修正、次のステップを変更
     - 5a30691 docs(log): Phase 2 のログの誤記修正、詰まりポイント追加
@@ -19,6 +21,8 @@
 - /src/ci_playground/domain/values.pyにRange、SensorId, DeviceIdのデータクラスを追加
 - /src/ci_playground/domain/values.pyにSensorTypeの文字列列挙型を追加
 - /tests/unit/domainにvalues.pyのテストスクリプトを追加
+- /src/ci_playground/domain/sensor.pyにSensorエンティティを追加
+- /tests/unit/domainにsensor.pyのテストスクリプトを追加
 
 ## ポイント（学んだこと・選択の理由）
 - @dataclassのデコレータを使用することで、自動で __eq__/__hash__/__repr__ を生成
@@ -28,6 +32,10 @@
 - 真偽値を返す関数の場合は、真のとき：assert (関数)、偽のとき：assert not (関数) で良い。(== trueは冗長のためruffに指摘される)
 - .strip()で文字列から空白を除去して、空文字判定を楽に行うことができる
 - EnumのメンバアクセスはSensorType.TEMPERATUREのようにメソッドのように呼び出すことができる
+- @dataclass(eq=False) で__init__は自動生成し、自前 __eq__ を追加することができる
+- @property化することでメソッドを呼び出すときに()不要となる（例：s.is_anomalous）
+- == None ではなく is None と書く（PEP8）
+
 
 ## 詰まったところ
 ### 詰まり1: NaN シンボルが Python に存在しない
