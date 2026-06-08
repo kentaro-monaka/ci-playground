@@ -19,5 +19,5 @@ jobs:
       - name: format-check
         run: uv run ruff format --check .
       
-      - name: test
-        run: uv run pytest
+      - name: test with coverage
+        run: uv run pytest --cov --cov-report=term-missing

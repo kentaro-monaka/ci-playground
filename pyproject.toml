@@ -16,3 +16,16 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src/ci_playground"]
+branch = true     # if/else の両方を通ったか測定
+
+[tool.coverage.report]
+show_missing = true      # 通ってない行番号を表示
+skip_covered = false      # 100%のファイルも表示
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
