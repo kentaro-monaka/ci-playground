@@ -1,5 +1,6 @@
 import pytest
-from ci_playground.domain.values import SensorType, Range, SensorId, DeviceId
+
+from ci_playground.domain.values import DeviceId, Range, SensorId, SensorType
 
 
 class TestValues:

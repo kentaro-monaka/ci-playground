@@ -1,4 +1,5 @@
 import pytest
+
 from ci_playground.domain.readings import CurrentReading
 
 

@@ -1,8 +1,9 @@
 import pytest
+
 from ci_playground.domain.device import Device
-from ci_playground.domain.sensor import Sensor
-from ci_playground.domain.values import DeviceId, SensorId, SensorType, Range
 from ci_playground.domain.readings import TemperatureReading, VoltageReading
+from ci_playground.domain.sensor import Sensor
+from ci_playground.domain.values import DeviceId, Range, SensorId, SensorType
 
 
 class TestDevice:
