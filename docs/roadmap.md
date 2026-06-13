@@ -89,7 +89,7 @@ Python側 infrastructure 層。アダプタを1つずつ「実機の代替物」
 
 | | アダプタ | 実機の代替手段 | 状態 |
 |---|---|---|---|
-| 3-A | PostgreSQL / SQLite | Testcontainers / `:memory:` | 実装済・テスト0 |
+| 3-A | PostgreSQL / SQLite | docker-compose / `:memory:` | テスト着手中 |
 | 3-B | Redis | Testcontainers / fakeredis | 未 |
 | 3-C | HTTPSクライアント | ローカルHTTPモック（respx等） | 未 |
 | 3-D | MQTTクライアント | Mosquittoコンテナ | 未 |
