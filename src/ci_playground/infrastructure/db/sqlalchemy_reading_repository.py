@@ -1,4 +1,4 @@
-"""PostgreSQL を使った ReadingRepository の実装."""
+"""SQLAlchemy を使った ReadingRepository の実装."""
 
 from datetime import datetime
 
@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ci_playground.domain.readings import (
     CurrentReading,
-    Reading,
     TemperatureReading,
     VoltageReading,
 )
+from ci_playground.domain.sensor import Reading
 from ci_playground.domain.values import DeviceId, SensorId, SensorType
 from ci_playground.infrastructure.db.orm import ReadingRow
 
@@ -19,10 +19,13 @@ _READING_TO_SENSOR_TYPE: dict[type[Reading], SensorType] = {
     VoltageReading: SensorType.VOLTAGE,
     CurrentReading: SensorType.CURRENT,
 }
+_SENSOR_TYPE_TO_READING: dict[SensorType, type[Reading]] = {
+    sensor_type: cls for cls, sensor_type in _READING_TO_SENSOR_TYPE.items()
+}
 
 
-class PostgresReadingRepository:
-    """Reading を PostgreSQL に保存・取得する Adapter."""
+class SqlAlchemyReadingRepository:
+    """Reading を SQLALchemy に保存・取得する Adapter."""
 
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -68,5 +71,5 @@ class PostgresReadingRepository:
             row = session.execute(stmt).scalar_one_or_none()
             if row is None:
                 return None
-            reading_cls = _READING_TO_SENSOR_TYPE[SensorType(row.sensor_type)]
+            reading_cls = _SENSOR_TYPE_TO_READING[SensorType(row.sensor_type)]
             return reading_cls(value=row.value)
