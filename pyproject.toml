@@ -19,6 +19,9 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+    "docker: 実Dockerコンテナ(Postgres等)が必要なテスト",
+]
 
 [tool.coverage.run]
 source = ["src/ci_playground"]
