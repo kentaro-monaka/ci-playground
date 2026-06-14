@@ -1,7 +1,7 @@
 """SQLAlchemy declarative model群（DBスキーマ）.
 
 ドメイン層の型とは別の、DB一対一マッピング用のクラスを置く。
-変換は infrastructure/db/postgres_reading_repository.py で行う。
+変換は infrastructure/db/sqlalchemy_reading_repository.py で行う。
 """
 
 from datetime import datetime
