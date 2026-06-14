@@ -1,0 +1,15 @@
+services:
+    postgres:
+      image: postgres:17
+      environment:
+        POSTGRES_USER: ci
+        POSTGRES_PASSWORD: ci
+        POSTGRES_DB: ci_playground
+      ports:
+        - "5432:5432"
+      # DBが「受付可能」になるまでを判定（テスト側が起動待ちに使える）
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U ci -d ci_playground"]
+        interval: 2s
+        timeout: 3s
+        retries: 20

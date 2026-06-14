@@ -19,5 +19,8 @@ jobs:
       - name: format-check
         run: uv run ruff format --check .
       
+      - name: start postgres (compose)
+        run: docker compose -f ops/docker-compose.yml up -d --wait
+      
       - name: test with coverage
         run: uv run pytest --cov --cov-report=term-missing --cov-fail-under=90
