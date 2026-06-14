@@ -9,6 +9,7 @@ from ci_playground.infrastructure.db.sqlalchemy_reading_repository import (
 )
 from tests.contract.reading_repository_contract import ReadingRepositoryContract
 
+
 class TestSqliteReadingRepository(ReadingRepositoryContract):
     @pytest.fixture
     def repo(self):
@@ -21,4 +22,7 @@ class TestSqliteReadingRepository(ReadingRepositoryContract):
         # ORM 定義から reading テーブルを作成
         Base.metadata.create_all(engine)
         # 本番と同じ session factory を再利用して Repository を組み立てる
-        return SqlAlchemyReadingRepository(session_factory(engine))
+        try:
+            yield SqlAlchemyReadingRepository(session_factory(engine))
+        finally:
+            engine.dispose()
