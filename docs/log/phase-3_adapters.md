@@ -1,7 +1,12 @@
-# Phase 3-A: アダプタ実装（DB）－ 契約テスト＋Fake+SQLite+Postgres 
+# Phase 3: アダプタ実装（DB）－ 契約テスト＋Fake+SQLite+Postgres+Redis 
 
-- **日付**: 2026-06-13, 2026-06-14
+- **日付**: 2026-06-13, 2026-06-14, 2026-06-15, 2026-06-16
 - **関連コミット/PR**:
+    - 1d7ba0c feat(ci): docker-compose に Redis を追加
+    - fc2600f feat(test): Redis アダプタを契約テストに束ねる（fakeredis/実Redis）
+    - d826c02 feat(infrastructure): Reading を Redis に保存・取得する Adapter を追加
+    - f03e88d docs(roadmap): Phase 3-A を完了
+    - 8bb5398 docs(log): Phase 3-A のログを作成
     - ff037c6 feat(ci): docker-compose の Postgres を CI で起動して統合テストを実行
     - 7cf245d feat(test): 実Postgres を契約テストに束ねる（docker マーカー登録）
     - f7e532e fix(test): SQLite フィクスチャで engine を破棄し ResourceWarning を解消
@@ -31,7 +36,10 @@
 - fixtureのDBクローズ漏れに対応して return から try + finally に変更し engine.dispose()でResourceWarning解消
 - CI に compose-Postgres 起動ステップ追加
 - コンテナリビルドによりclaude履歴が消えたためdocs/roadmap.md をgit管理追加
-
+- Redis アダプタを契約テスト＋複数実装の型に追加。RedisReadingRepositoryを実装。
+- tests/unit/infrastructure/redis/test_fakeredis_reading_repositoryを実装、docker不要のユニットテスト。
+- tests/integration/infrastructure/redis/test_redis_reading_repositoryを実装、docker要の統合テスト。
+- CI で起動する docker-compose.yml に redis起動設定を追加
 
 ## ポイント（学んだこと・選択の理由）
 - 契約テストにより1つの仕様を3実装でテストできる（Fake/SQLite/実Postgres）
@@ -42,6 +50,9 @@
 - SQLite:memory:は engine 新規=自動で空になる。実Postgresは永続するので毎テストdrop_all、create_allで掃除する。
 - CIとローカルで同じymlファイルからcomposeすることで環境差がなくなる
 - fixture ＝ "毎回同じ条件を固定して用意する治具"。ソフトでは「テスト前に整える準備済みの土台」、pytest ではそれを作る関数。
+- 後始末の有無＝本物の接続を持つかで決まる：fakeredis は return（資源なし）、実Redis は yield＋client.close()（実接続あり）。3-A の engine.dispose()と同じ理屈。
+- 失敗が起きない箇所（単に文字列を返すだけ）などはtry、except で例外処理を書くとバグを隠してしまうため不要なら使わない。
+- docker-composeでは`CMD-SHELL`を使うときは コマンドを1文で書く、`CMD` を使うときはコマンド毎に区切る。
 
 ## 詰まったところ
 ### 詰まり1: コンテナリビルドで uv/Python が消失
@@ -72,9 +83,9 @@
 
 
 ## 結果
-- domain 62 ＋ 契約(4×3実装) 12 ＝ 74 passed、カバレッジ 92.34%
+- domain 62 ＋ 契約(4×5実装) 20 ＝ 82 passed、カバレッジ 93.22%
 - unit/integration を docker要否で確定、-m "not docker"で高速ループ
-- CI に dockerコンテナを使ったDBテストを追加することができた
+- CI に dockerコンテナ（postgreSQL + Redis）を使ったDBテストを追加することができた
 
 ## 次の一歩
-- Phase 3-B: Redis — 同じ契約パターンを再利用（速い偽物=fakeredis／本物=compose の Redis）。
+- Phase 3-C: HTTPSクライアント追加
