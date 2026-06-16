@@ -1,6 +1,6 @@
 import os
-import pytest
 
+import pytest
 import redis
 
 from ci_playground.infrastructure.redis.redis_reading_repository import (
@@ -9,6 +9,7 @@ from ci_playground.infrastructure.redis.redis_reading_repository import (
 from tests.contract.reading_repository_contract import ReadingRepositoryContract
 
 DEFAULT_REDIS_URL = "redis://localhost:6379/0"
+
 
 @pytest.mark.docker
 class TestRedisReadingRepository(ReadingRepositoryContract):
@@ -22,4 +23,3 @@ class TestRedisReadingRepository(ReadingRepositoryContract):
             yield RedisReadingRepository(client)
         finally:
             client.close()
-
