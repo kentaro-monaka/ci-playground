@@ -1,7 +1,14 @@
-# Phase 3: アダプタ実装（DB）－ 契約テスト＋Fake+SQLite+Postgres+Redis 
+# Phase 3: アダプタ実装（DB）－ 契約テスト ＋ DB(Fake/SQLite/Postgres/Redis) ＋ HTTPS送信
 
-- **日付**: 2026-06-13, 2026-06-14, 2026-06-15, 2026-06-16
+- **日付**: 2026-06-13, 2026-06-14～2026-06-20
 - **関連コミット/PR**:
+    - da754d6 feat(test): HttpReadingSender を respx で検証するテストを追加
+    - d765b97 feat(infrastructure): Reading を HTTPS で送信する Adapter を追加
+    - fe6ded3 feat(application): ReadingSender ポートと ReadingSendError を定義
+    - cbe09bf feat(dev): httpx、respxを追加
+    - 0413627 fix(test): Redis テストの import 整形と decode_responses 引数名を修正
+    - 0a029ee docs(roadmap): Phase 3-B を完了
+    - 8faff40 docs(log): Phase 3-B のログを追記
     - 1d7ba0c feat(ci): docker-compose に Redis を追加
     - fc2600f feat(test): Redis アダプタを契約テストに束ねる（fakeredis/実Redis）
     - d826c02 feat(infrastructure): Reading を Redis に保存・取得する Adapter を追加
@@ -40,6 +47,9 @@
 - tests/unit/infrastructure/redis/test_fakeredis_reading_repositoryを実装、docker不要のユニットテスト。
 - tests/integration/infrastructure/redis/test_redis_reading_repositoryを実装、docker要の統合テスト。
 - CI で起動する docker-compose.yml に redis起動設定を追加
+- ポート定義：application/ports/reading_sender.py に ReadingSender（Protocol）と専用例外ReadingSendError を定義。
+- アダプタ定義：infrastructure/https/http_reading_sender.py
+- respx テスト3本（unit・docker不要）：正常系、500エラー、接続タイムアウト。
 
 ## ポイント（学んだこと・選択の理由）
 - 契約テストにより1つの仕様を3実装でテストできる（Fake/SQLite/実Postgres）
@@ -53,6 +63,8 @@
 - 後始末の有無＝本物の接続を持つかで決まる：fakeredis は return（資源なし）、実Redis は yield＋client.close()（実接続あり）。3-A の engine.dispose()と同じ理屈。
 - 失敗が起きない箇所（単に文字列を返すだけ）などはtry、except で例外処理を書くとバグを隠してしまうため不要なら使わない。
 - docker-composeでは`CMD-SHELL`を使うときは コマンドを1文で書く、`CMD` を使うときはコマンド毎に区切る。
+- httpx の失敗2系統：非2xx は既定で例外を投げない→raise_for_status() が必要。
+- respx を使うことで実通信なしでサーバ側のふるまいをテストコード内で使うことができる。
 
 ## 詰まったところ
 ### 詰まり1: コンテナリビルドで uv/Python が消失
@@ -83,9 +95,11 @@
 
 
 ## 結果
-- domain 62 ＋ 契約(4×5実装) 20 ＝ 82 passed、カバレッジ 93.22%
+- domain 62 ＋ 契約(4×5実装) 20 + HTTPS送信 3 ＝ 85 passed、カバレッジ 93.51%
 - unit/integration を docker要否で確定、-m "not docker"で高速ループ
 - CI に dockerコンテナ（postgreSQL + Redis）を使ったDBテストを追加することができた
+- CI に respx を使ったhttps 通信テストを追加することができた
+
 
 ## 次の一歩
-- Phase 3-C: HTTPSクライアント追加
+- Phase 3-D: MQTTクライアント追加
