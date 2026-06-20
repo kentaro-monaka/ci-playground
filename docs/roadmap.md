@@ -91,7 +91,7 @@ Python側 infrastructure 層。アダプタを1つずつ「実機の代替物」
 |---|---|---|---|
 | 3-A | PostgreSQL / SQLite | docker-compose / `:memory:` | ✅完了 |
 | 3-B | Redis | docker-compose / fakeredis | ✅完了 |
-| 3-C | HTTPSクライアント | ローカルHTTPモック（respx等） | 未 |
+| 3-C | HTTPSクライアント | ローカルHTTPモック（respx等） | ✅完了 |
 | 3-D | MQTTクライアント | Mosquittoコンテナ | 未 |
 | 3-E | Modbus/TCP サーバ＆クライアント | localhostループバック | 未 |
 | 3-F | Modbus/RTU | 擬似シリアル（pty/socat） | 未 |
