@@ -1,7 +1,12 @@
 # Phase 3: アダプタ実装（DB）－ 契約テスト ＋ DB(Fake/SQLite/Postgres/Redis) ＋ HTTPS送信
 
-- **日付**: 2026-06-13, 2026-06-14～2026-06-20
+- **日付**: 2026-06-13, 2026-06-14～2026-06-25
 - **関連コミット/PR**:
+    - 5c063f1 feat(test): ReadingSenderContract を抽出し HTTPS/MQTTを契約テストで束ねる
+    - c37c4da refactor(infrastructure): 送信ペイロードを reading_to_payload に共通化（HTTPS/MQTT 共用）
+    - 4f138de feat(ci): docker-compose に Mosquitto を追加し MQTT 統合テストを追加
+    - 0afc2ee feat(test): MqttReadingSender の unit テスト（pahoをモック）を追加
+    - 90e4b1c feat(infrastructure): MQTT 送信アダプタ MqttReadingSender を追加（paho-mqtt）
     - da754d6 feat(test): HttpReadingSender を respx で検証するテストを追加
     - d765b97 feat(infrastructure): Reading を HTTPS で送信する Adapter を追加
     - fe6ded3 feat(application): ReadingSender ポートと ReadingSendError を定義
@@ -28,7 +33,7 @@
     - fec843a feat(infrastructure): DB engine と Session factory を追加
     - 218279c feat(infrastructure): SQLAlchemy ORM モデル（ReadingRow）を追加
     - d531bed feat(application): ReadingRepostory ポートを定義（Protocol）
-- **所要時間**: 5時間
+- **所要時間**: 10時間
 
 ## 実施内容
 - ポート定義：application/ports/reading_repository.py に ReadingRepository（Protocol）を定義。save / find_latest の抽象シグネチャ
@@ -48,8 +53,14 @@
 - tests/integration/infrastructure/redis/test_redis_reading_repositoryを実装、docker要の統合テスト。
 - CI で起動する docker-compose.yml に redis起動設定を追加
 - ポート定義：application/ports/reading_sender.py に ReadingSender（Protocol）と専用例外ReadingSendError を定義。
-- アダプタ定義：infrastructure/https/http_reading_sender.py
+- アダプタ定義：infrastructure/https/http_reading_sender.py。HTTPSのアダプタ。
 - respx テスト3本（unit・docker不要）：正常系、500エラー、接続タイムアウト。
+- アダプタ定義：infrastructure/mqtt/mqtt_reading_sender.py。MQTTのアダプタ。
+- unit：respx 相当が無いので paho Client を unittest.mock でまるごと偽装、topic/payload/qos を検証＋失敗仕込み。
+- integration：ops/mosquitto.conf（listener+匿名許可）＋ compose に Mosquitto、実ブローカへ送れること（PUBACK受領）を確認。
+- 【リファクタリング】 reading_to_payload を infrastructure/reading_payload.py に切り出し、HTTP/MQTT 両方が使用（dict まで共通・JSON化は各輸送）。
+- 【リファクタリング】 ReadingSenderContract（成功＝静か／失敗＝例外の2本）を作り HTTP/MQTT が継承。子は sender_ok/failing_sender を供給。payloadと固有の失敗経路は個別に残す。
+
 
 ## ポイント（学んだこと・選択の理由）
 - 契約テストにより1つの仕様を3実装でテストできる（Fake/SQLite/実Postgres）
@@ -65,6 +76,13 @@
 - docker-composeでは`CMD-SHELL`を使うときは コマンドを1文で書く、`CMD` を使うときはコマンド毎に区切る。
 - httpx の失敗2系統：非2xx は既定で例外を投げない→raise_for_status() が必要。
 - respx を使うことで実通信なしでサーバ側のふるまいをテストコード内で使うことができる。
+- MQTTはクライアントからのデータ送信時にブローカ経由で publish する。URLの代わりにtopicとしてパスを指定する。
+- QoS1＋wait_for_publish＝「本当に届いた(PUBACK)」＝HTTP の 2xx 相当。
+- assert 無しテストの意味：例外が出なければ pass（send が失敗時 raise するので、最後まで到達＝成功）。
+- 共通関数への抽出は2つ目が出てから（早すぎる抽象化回避）。
+- 送信契約は薄い（2本）。payload 検証は輸送依存で契約に入れられない。
+- Mosquitto 2.x は既定で匿名拒否→conf で listener＋allow_anonymous。healthcheck は mosquitto_pub。
+
 
 ## 詰まったところ
 ### 詰まり1: コンテナリビルドで uv/Python が消失
@@ -95,7 +113,7 @@
 
 
 ## 結果
-- domain 62 ＋ 契約(4×5実装) 20 + HTTPS送信 3 ＝ 85 passed、カバレッジ 93.51%
+- domain 62 ＋ 契約(4×5実装) 20 ＋ HTTPS 4 ＋ MQTT unit 4 ＋ MQTT integration 1 ＝ 91 passed、カバレッジ 94.14%
 - unit/integration を docker要否で確定、-m "not docker"で高速ループ
 - CI に dockerコンテナ（postgreSQL + Redis）を使ったDBテストを追加することができた
 - CI に respx を使ったhttps 通信テストを追加することができた
