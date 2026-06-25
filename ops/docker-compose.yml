@@ -22,3 +22,14 @@ services:
         interval: 2s
         timeout: 3s
         retries: 20
+    mosquitto:
+      image: eclipse-mosquitto:2
+      ports:
+        - "1883:1883"
+      volumes:
+        - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      healthcheck:
+        test: ["CMD-SHELL", "mosquitto_pub -h localhost -t health -m ok || exit 1"]
+        interval: 2s
+        timeout: 3s
+        retries: 20
