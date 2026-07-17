@@ -89,3 +89,23 @@ class DeviceId:
     def __post_init__(self):
         if self.value.strip() == "":
             raise ValueError(f"device_id 空文字のためエラー: {self.value}")
+
+
+@dataclass(frozen=True)  # 不変 + 自動で __eq__/__hash__/__repr__ を生成
+class SetpointId:
+    """Device 内でローカルに一意なSetpoint識別子.
+
+    空文字・空白の場合は不正として生成時に拒否する。
+
+    Attributes:
+        value: 識別子.
+
+    Raises:
+        ValueError: 空文字・空白の場合
+    """
+
+    value: str
+
+    def __post_init__(self):
+        if self.value.strip() == "":
+            raise ValueError(f"setpoint_id 空文字のためエラー: {self.value}")

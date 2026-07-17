@@ -1,6 +1,12 @@
 import pytest
 
-from ci_playground.domain.values import DeviceId, Range, SensorId, SensorType
+from ci_playground.domain.values import (
+    DeviceId,
+    Range,
+    SensorId,
+    SensorType,
+    SetpointId,
+)
 
 
 class TestValues:
@@ -95,3 +101,18 @@ class TestValues:
         r = DeviceId(value="device-001")
         with pytest.raises(FrozenInstanceError):  # frozenで属性書き換えできない例外
             r.value = "device-002"
+
+    def test_create_with_valid_setpoint_id(self):
+        r = SetpointId(value="setpoint-001")
+        assert r.value == "setpoint-001"
+
+    def test_create_with_invalid_setpoint_id(self):
+        with pytest.raises(ValueError):  # 値の検証エラー
+            SetpointId(value="   ")
+
+    def test_should_not_allow_setpointid_modification(self):
+        from dataclasses import FrozenInstanceError
+
+        r = SetpointId(value="setpoint-001")
+        with pytest.raises(FrozenInstanceError):  # frozenで属性書き換えできない例外
+            r.value = "setpoint-002"
