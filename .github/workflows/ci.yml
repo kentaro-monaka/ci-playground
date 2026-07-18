@@ -19,6 +19,9 @@ jobs:
       - name: format-check
         run: uv run ruff format --check .
       
+      - name: install socat (擬似シリアル用)
+        run: sudo apt-get update && sudo apt-get install -y socat
+      
       - name: start postgres (compose)
         run: docker compose -f ops/docker-compose.yml up -d --wait
       
