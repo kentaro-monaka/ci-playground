@@ -3,7 +3,8 @@
 import pytest
 
 from ci_playground.application.ports.field_bus import FieldBusError
-from ci_playground.domain.values import SetpointId
+from ci_playground.domain.readings import TemperatureReading
+from ci_playground.domain.values import SensorId, SetpointId
 
 
 class FieldBusContract:
@@ -23,3 +24,12 @@ class FieldBusContract:
     def test_write_unknown_setpoint_raises(self, bus):
         with pytest.raises(FieldBusError):
             bus.write_setpoint(SetpointId("sp-unknown"), 1.0)
+
+    def test_read_reading_returns_seeded_value(self, bus):
+        reading = bus.read_reading(SensorId("sen-temp"))
+        assert isinstance(reading, TemperatureReading)
+        assert reading.value == pytest.approx(25.0)
+
+    def test_read_unknown_reading_raises(self, bus):
+        with pytest.raises(FieldBusError):
+            bus.read_reading(SensorId("sen-unknown"))
