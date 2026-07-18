@@ -88,15 +88,21 @@ Python側 infrastructure 層。アダプタを1つずつ「実機の代替物」
 **3-A で「InMemory Fake ＋ Contract test」の型を作り、以降に使い回す。**
 フィールドバス系アダプタ（CAN/Modbus等）は **read/write 両方向**を実装：計測の読み取り＋設定・制御コマンドの書き込み。テストも双方向（書いた制御が仮想デバイスに届くか）で検証する。
 
+Modbus は**役の異なる2つのポート**として実装する（同じ `domain`／契約の型を流用し、`infrastructure` 実装だけ差し替え）：
+- **クライアント（マスター）＝ RTU/RS485**：BESS が現場機器（インバータ/BMS）を読み書きする。既存 `FieldBus` ポートの実装。`infrastructure/rs485/`。
+- **サーバー（スレーブ）＝ TCP**：上位（EMS/アグリゲータ）が BESS を読み書きする受け口。新規ポート。`infrastructure/modbus/`。
+- 当初案の Modbus/TCP クライアントは採用せず（RTU クライアント＋TCP サーバーの構成が実運用に近いため）。
+
 | | アダプタ | 実機の代替手段 | 状態 |
 |---|---|---|---|
 | 3-A | PostgreSQL / SQLite | docker-compose / `:memory:` | ✅完了 |
 | 3-B | Redis | docker-compose / fakeredis | ✅完了 |
 | 3-C | HTTPSクライアント | ローカルHTTPモック（respx等） | ✅完了 |
 | 3-D | MQTTクライアント | Mosquittoコンテナ | ✅完了 |
-| 3-E | Modbus/TCP サーバ＆クライアント | localhostループバック | 未 |
-| 3-F | Modbus/RTU | 擬似シリアル（pty/socat） | 未 |
-| 3-G | CAN | python-can `virtual` backend | 未 |
+| 3-E-1 | Modbus/RTU **クライアント**（BESS→現場機器 / RS485） | 擬似シリアル（pty/socat）＋ pymodbus サーバ | 未 |
+| 3-E-2 | Modbus/TCP **サーバー**（上位→BESS / スレーブ） | localhostループバック | 未 |
+| ~~3-F~~ | ~~Modbus/RTU~~ → **3-E-1 に統合**（RTU をクライアント本命に採用） | — | 統合 |
+| 3-G | CAN | python-can `virtual` backend | ⏸保留（3-E で型が固まるため反復。必要になれば着手） |
 
 ### Phase 4–5（北極星コアの残り・暫定）＋ 保留
 
