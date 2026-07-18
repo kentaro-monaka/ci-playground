@@ -12,7 +12,7 @@ from pymodbus.server import ModbusSerialServer
 from pymodbus.simulator import SimData, SimDevice
 from pymodbus.simulator.simdata import DataType
 
-from ci_playground.domain.values import SetpointId
+from ci_playground.domain.values import SensorId, SensorType, SetpointId
 from ci_playground.infrastructure.rs485.rtu_field_bus import RegisterSpec, RtuFieldBus
 from tests.contract.field_bus_contract import FieldBusContract
 
@@ -48,8 +48,9 @@ def modbus_server(serial_pair):
 
     def run():
         async def main():
-            sim = SimData(10, count=8, values=0, datatype=DataType.REGISTERS)
-            device = SimDevice(1, simdata=[sim])
+            setpoint_area = SimData(10, count=8, values=0, datatype=DataType.REGISTERS)
+            sensor_area = SimData(20, count=1, values=250, datatype=DataType.REGISTERS)
+            device = SimDevice(1, simdata=[setpoint_area, sensor_area])
             server = ModbusSerialServer(device, port=server_port, baudrate=9600)
             box["server"] = server
             box["loop"] = asyncio.get_running_loop()
@@ -82,6 +83,11 @@ class TestRtuFieldBus(FieldBusContract):
             device_id=1,
             setpoint_registers={
                 SetpointId("sp-power"): RegisterSpec(address=10, scale=0.1),
+            },
+            sensor_registers={
+                SensorId("sen-temp"): RegisterSpec(
+                    address=20, scale=0.1, sensor_type=SensorType.TEMPERATURE
+                ),
             },
         )
         yield adapter

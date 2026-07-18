@@ -5,7 +5,19 @@ from dataclasses import dataclass
 from pymodbus.client import ModbusSerialClient
 
 from ci_playground.application.ports.field_bus import FieldBusError
-from ci_playground.domain.values import SetpointId
+from ci_playground.domain.readings import (
+    CurrentReading,
+    TemperatureReading,
+    VoltageReading,
+)
+from ci_playground.domain.sensor import Reading
+from ci_playground.domain.values import SensorId, SensorType, SetpointId
+
+_SENSOR_TYPE_TO_READING: dict[SensorType, type[Reading]] = {
+    SensorType.TEMPERATURE: TemperatureReading,
+    SensorType.VOLTAGE: VoltageReading,
+    SensorType.CURRENT: CurrentReading,
+}
 
 
 @dataclass(frozen=True)
@@ -14,6 +26,7 @@ class RegisterSpec:
 
     address: int
     scale: float = 1.0
+    sensor_type: SensorType | None = None
 
 
 class RtuFieldBus:
@@ -24,10 +37,12 @@ class RtuFieldBus:
         client: ModbusSerialClient,
         device_id: int,
         setpoint_registers: dict[SetpointId, RegisterSpec],
+        sensor_registers: dict[SensorId, RegisterSpec],
     ) -> None:
         self._client = client
         self._device_id = device_id
         self._setpoint_registers = setpoint_registers
+        self._sensor_registers = sensor_registers
 
     def write_setpoint(self, setpoint_id: SetpointId, value: float) -> None:
         """Setpoint を1件書き込む."""
@@ -52,3 +67,16 @@ class RtuFieldBus:
         if result.isError():
             raise FieldBusError(f"read 失敗: {setpoint_id} -> {result}")
         return result.registers[0] * spec.scale
+
+    def read_reading(self, sensor_id: SensorId) -> Reading:
+        """Reading を1件読む."""
+        spec = self._sensor_registers.get(sensor_id)
+        if spec is None:
+            raise FieldBusError(f"未登録の sensor id です: {sensor_id}")
+        result = self._client.read_holding_registers(
+            spec.address, count=1, device_id=self._device_id
+        )
+        if result.isError():
+            raise FieldBusError(f"read 失敗: {sensor_id} -> {result}")
+        reading_cls = _SENSOR_TYPE_TO_READING[spec.sensor_type]
+        return reading_cls(value=result.registers[0] * spec.scale)
