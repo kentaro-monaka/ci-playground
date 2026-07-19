@@ -99,7 +99,7 @@ Modbus は**役の異なる2つのポート**として実装する（同じ `dom
 | 3-B | Redis | docker-compose / fakeredis | ✅完了 |
 | 3-C | HTTPSクライアント | ローカルHTTPモック（respx等） | ✅完了 |
 | 3-D | MQTTクライアント | Mosquittoコンテナ | ✅完了 |
-| 3-E-1 | Modbus/RTU **クライアント**（BESS→現場機器 / RS485） | 擬似シリアル（pty/socat）＋ pymodbus サーバ | 未 |
+| 3-E-1 | Modbus/RTU **クライアント**（BESS→現場機器 / RS485） | 擬似シリアル（pty/socat）＋ pymodbus サーバ | ✅完了 |
 | 3-E-2 | Modbus/TCP **サーバー**（上位→BESS / スレーブ） | localhostループバック | 未 |
 | ~~3-F~~ | ~~Modbus/RTU~~ → **3-E-1 に統合**（RTU をクライアント本命に採用） | — | 統合 |
 | 3-G | CAN | python-can `virtual` backend | ⏸保留（3-E で型が固まるため反復。必要になれば着手） |
