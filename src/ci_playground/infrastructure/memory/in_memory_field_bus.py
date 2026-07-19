@@ -1,4 +1,4 @@
-"""インメモリーに保存する Fake のリポジトリ."""
+"""インメモリーに保存する Fake の bus."""
 
 from ci_playground.application.ports.field_bus import FieldBusError
 from ci_playground.domain.sensor import Reading
