@@ -1,7 +1,5 @@
 """pymodbus (RTU/RS485) を使った FieldBus クライアントの実装."""
 
-from dataclasses import dataclass
-
 from pymodbus.client import ModbusSerialClient
 
 from ci_playground.application.ports.field_bus import FieldBusError
@@ -12,21 +10,13 @@ from ci_playground.domain.readings import (
 )
 from ci_playground.domain.sensor import Reading
 from ci_playground.domain.values import SensorId, SensorType, SetpointId
+from ci_playground.infrastructure.modbus_registers import RegisterSpec
 
 _SENSOR_TYPE_TO_READING: dict[SensorType, type[Reading]] = {
     SensorType.TEMPERATURE: TemperatureReading,
     SensorType.VOLTAGE: VoltageReading,
     SensorType.CURRENT: CurrentReading,
 }
-
-
-@dataclass(frozen=True)
-class RegisterSpec:
-    """Modbus レジスタ1つの割り当て（番地とスケール）."""
-
-    address: int
-    scale: float = 1.0
-    sensor_type: SensorType | None = None
 
 
 class RtuFieldBus:
