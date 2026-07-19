@@ -1,7 +1,20 @@
 # Phase 3: アダプタ実装（DB）－ 契約テスト ＋ DB(Fake/SQLite/Postgres/Redis) ＋ HTTPS送信
 
-- **日付**: 2026-06-13, 2026-06-14～2026-06-25
+- **日付**: 2026-06-13, 2026-06-14～2026-06-25, 2026-07-17〜2026-07-19
 - **関連コミット/PR**:
+    - fe92a8b feat(ci): 疑似シリアル用に socat を導入し RTU 結合テストを CI で実行
+    - c483d57 feat(test): RTU FieldBus に read_reading を実装し契約6本フルで束ねる
+    - eb5dec5 feat(test): RTU FieldBus を実pymodbusサーバーに束ね setpoint 契約を通す
+    - d4e5f34 feat(infrastructure): RTU FieldBus アダプタに setpoint 読み書きを実装
+    - c9e9378 docs(roadmap): 3-E を RTUクライアント+TCPサーバーに再構成、3-F統合・3-G保留
+    - 357dd4b feat(dev): pymodbus の serial extra を追加（RTU クライアント用）
+    - 263b11f feat(test): FieldBus 契約に read_reading の約束を追加し未知IDの穴を塞ぐ
+    - ab04636 feat(test): FieldBus 契約に setpoint の未書込・未知IDの約束を追加
+    - 6ee825c feat(test): FieldBus 契約テストを追加し InMemory Fake を束ねる
+    - ec37123 feat(infrastructure): InMemory Fake の FieldBus を追加
+    - a40b173 feat(application): FieldBus ポートと FieldBusError を定義
+    - 64086ee feat(domain): SetpointId を追加
+    - 290fe5e feat(dev): pymodbusを追加
     - 5c063f1 feat(test): ReadingSenderContract を抽出し HTTPS/MQTTを契約テストで束ねる
     - c37c4da refactor(infrastructure): 送信ペイロードを reading_to_payload に共通化（HTTPS/MQTT 共用）
     - 4f138de feat(ci): docker-compose に Mosquitto を追加し MQTT 統合テストを追加
@@ -60,6 +73,12 @@
 - integration：ops/mosquitto.conf（listener+匿名許可）＋ compose に Mosquitto、実ブローカへ送れること（PUBACK受領）を確認。
 - 【リファクタリング】 reading_to_payload を infrastructure/reading_payload.py に切り出し、HTTP/MQTT 両方が使用（dict まで共通・JSON化は各輸送）。
 - 【リファクタリング】 ReadingSenderContract（成功＝静か／失敗＝例外の2本）を作り HTTP/MQTT が継承。子は sender_ok/failing_sender を供給。payloadと固有の失敗経路は個別に残す。
+- domain: `SetpointId` 値オブジェクトを追加（`SensorId`/`DeviceId` と同型）。
+- ポート定義: `application/ports/field_bus.py` に `FieldBus` (Protocol・read_reading/write_setpoint/read_setpoint の3メソッド) と `FieldBusError` を定義
+- InMemory Fake: `infrastructure/memory/in_memory_field_bus.py`。setpoint は dict、reading はコンストラクタ注入、存在集合で未知判定
+- 契約テスト： `tests/contract/field_bus_contract.py` に6本 (setpoint往復／未書込0.0／未知read・write→例外／reading読取／未知reading→例外)
+- RTU実アダプタ： `infrastructure/rs485/rtu_field_bus.py`。`ModbusSerialClient`、`RegisterSpec`(address/scale/sensor_type)をコンストラクタ注入
+- CI： `ci.yml` に socat インストールを追加
 
 
 ## ポイント（学んだこと・選択の理由）
@@ -82,6 +101,13 @@
 - 共通関数への抽出は2つ目が出てから（早すぎる抽象化回避）。
 - 送信契約は薄い（2本）。payload 検証は輸送依存で契約に入れられない。
 - Mosquitto 2.x は既定で匿名拒否→conf で listener＋allow_anonymous。healthcheck は mosquitto_pub。
+- ポート/契約は輸送方法に非依存=TCP/RTUの差は infrastructure の実装クラス1個だけ。domain・ports・契約は無変更で流用できる
+- pymodbusサーバーは非同期（asyncio）=ただのスレッドでは `no running event loop`。スレッド内で `asyncio.run(main())` してループを用意、停止は `run_coroutine_threadsafe` (別スレッドのループへ投げる)
+- pty番号は動的割当=fixtureは socat の stderr 出力から正規表現で取得しハードコートしない。
+- pyserial は最新3.5 (2020-11)で更新停止だが、シリアルは枯れた領域+pymodbusが依存指定で代替なし。「更新停止=即危険」ではなく対象領域の変化速度と依存元の判断で評価。
+- 後始末：実シリアルは `client.close()`、socatは `terminate()`、サーバーは `shutdown()`
+- 技術的負債=Reading⇔SensorType 対応表が4ファイル重複 (reading_payload/sqlalchemy/redis/rtu)。真の重複なので domain へ共通化予定（別回・別コミット）
+- 別途: RTU の isError→FieldBusError 翻訳を固有テストで担保（現状カバレッジ 89%、未カバー rtu_field_bus.py:57/68/80）
 
 
 ## 詰まったところ
@@ -111,13 +137,33 @@
 - **原因**: SQLite フィクスチャが engine(StaticPoolで1接続保持)を**dispose()していない**
 - **解決**: フィクスチャをtry + finally にして最終的にengine.dispose()　で閉じる
 
+### 詰まり6: Modbus サーバー生成で `RuntimeError: no running event loop`
+- **症状**: `ModbusSerialServer(...)` を別スレッドで生成した瞬間に落ちる
+- **原因**: pymodbus サーバーは非同期。生成時に `asyncio.get_running_loop()` を呼ぶがループが無い
+- **解決**: スレッド内で `asyncio.run(main())` を回し、その中で生成・`serve_forever`。停止は `run_coroutine_threadsafe`
+
+### 詰まり7: `ModuleNotFoundError: No module named 'tests'`
+- **症状**: 新テストが `from tests.contract...` の import で収集エラー
+- **原因**: 新ディレクトリ `tests/integration/infrastructure/rs485/` に `__init__.py` が無く、`tests` パッケージが解決できない
+- **解決**: 空の `__init__.py` を追加
+
+### 詰まり8: read_reading で `ExceptionResponse code=2`（Illegal Data Address）
+- **症状**: reading契約だけ失敗。番地20で例外応答
+- **原因**: サーバーの `SimData` が番地10-17しか定義しておらず、sensor用の番地20が未定義。
+- **解決**: `SimData` を2ブロック（setpoint域10-17＋sensor域20に250）にして device に渡す。TCPループバックで挙動を先に検証してから修正
+
+### 詰まり9: `ModbusSerialClient` が `RuntimeError`（pyserial 未導入）
+- **症状**: RTUクライアント生成で失敗
+- **原因**: pymodbus 3.x はシリアルを optional extra 化。本体だけでは pyserial が入らない
+- **解決**: `uv add "pymodbus[serial]"`
 
 ## 結果
-- domain 62 ＋ 契約(4×5実装) 20 ＋ HTTPS 4 ＋ MQTT unit 4 ＋ MQTT integration 1 ＝ 91 passed、カバレッジ 94.14%
+- domain 65 ＋ 契約(4×5実装) 20 ＋ FieldBus契約(6×2実装) 12 + HTTPS 4 ＋ MQTT unit 4 ＋ MQTT integration 1 ＝ 106 passed、カバレッジ 93%
 - unit/integration を docker要否で確定、-m "not docker"で高速ループ
 - CI に dockerコンテナ（postgreSQL + Redis）を使ったDBテストを追加することができた
 - CI に respx を使ったhttps 通信テストを追加することができた
+- CI に socat を使ったModbusRYT 通信テストを追加することができた
 
 
 ## 次の一歩
-- Phase 3-D: MQTTクライアント追加
+- Phase 3-E-2: Modbus TCPサーバー追加
