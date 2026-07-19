@@ -13,8 +13,8 @@ from pymodbus.simulator import SimData, SimDevice
 from pymodbus.simulator.simdata import DataType
 
 from ci_playground.domain.values import SensorId, SensorType, SetpointId
-from ci_playground.infrastructure.rs485.rtu_field_bus import RtuFieldBus
 from ci_playground.infrastructure.modbus_registers import RegisterSpec
+from ci_playground.infrastructure.rs485.rtu_field_bus import RtuFieldBus
 from tests.contract.field_bus_contract import FieldBusContract
 
 

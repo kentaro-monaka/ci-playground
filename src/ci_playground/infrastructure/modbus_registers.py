@@ -1,6 +1,9 @@
+"""Modbus レジスタ割り当ての共通定義."""
+
 from dataclasses import dataclass
 
 from ci_playground.domain.values import SensorType
+
 
 @dataclass(frozen=True)
 class RegisterSpec:
