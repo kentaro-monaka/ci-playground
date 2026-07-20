@@ -3,20 +3,12 @@
 from pymodbus.client import ModbusSerialClient
 
 from ci_playground.application.ports.field_bus import FieldBusError
-from ci_playground.domain.readings import (
-    CurrentReading,
-    TemperatureReading,
-    VoltageReading,
+from ci_playground.domain.reading_types import (
+    SENSOR_TYPE_TO_READING,
 )
 from ci_playground.domain.sensor import Reading
-from ci_playground.domain.values import SensorId, SensorType, SetpointId
+from ci_playground.domain.values import SensorId, SetpointId
 from ci_playground.infrastructure.modbus_registers import RegisterSpec
-
-_SENSOR_TYPE_TO_READING: dict[SensorType, type[Reading]] = {
-    SensorType.TEMPERATURE: TemperatureReading,
-    SensorType.VOLTAGE: VoltageReading,
-    SensorType.CURRENT: CurrentReading,
-}
 
 
 class RtuFieldBus:
@@ -68,5 +60,5 @@ class RtuFieldBus:
         )
         if result.isError():
             raise FieldBusError(f"read 失敗: {sensor_id} -> {result}")
-        reading_cls = _SENSOR_TYPE_TO_READING[spec.sensor_type]
+        reading_cls = SENSOR_TYPE_TO_READING[spec.sensor_type]
         return reading_cls(value=result.registers[0] * spec.scale)

@@ -2,19 +2,11 @@
 
 from datetime import datetime
 
-from ci_playground.domain.readings import (
-    CurrentReading,
-    TemperatureReading,
-    VoltageReading,
+from ci_playground.domain.reading_types import (
+    READING_TO_SENSOR_TYPE,
 )
 from ci_playground.domain.sensor import Reading
-from ci_playground.domain.values import DeviceId, SensorId, SensorType
-
-_READING_TO_SENSOR_TYPE: dict[type[Reading], SensorType] = {
-    TemperatureReading: SensorType.TEMPERATURE,
-    VoltageReading: SensorType.VOLTAGE,
-    CurrentReading: SensorType.CURRENT,
-}
+from ci_playground.domain.values import DeviceId, SensorId
 
 
 def reading_to_payload(
@@ -27,7 +19,7 @@ def reading_to_payload(
     return {
         "device_id": device_id.value,
         "sensor_id": sensor_id.value,
-        "type": _READING_TO_SENSOR_TYPE[type(reading)].value,
+        "type": READING_TO_SENSOR_TYPE[type(reading)].value,
         "value": reading.value,
         "recorded_at": recorded_at.isoformat(),
     }

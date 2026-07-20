@@ -3,22 +3,12 @@
 import json
 from datetime import datetime
 
-from ci_playground.domain.readings import (
-    CurrentReading,
-    TemperatureReading,
-    VoltageReading,
+from ci_playground.domain.reading_types import (
+    READING_TO_SENSOR_TYPE,
+    SENSOR_TYPE_TO_READING,
 )
 from ci_playground.domain.sensor import Reading
 from ci_playground.domain.values import DeviceId, SensorId, SensorType
-
-_READING_TO_SENSOR_TYPE: dict[type[Reading], SensorType] = {
-    TemperatureReading: SensorType.TEMPERATURE,
-    VoltageReading: SensorType.VOLTAGE,
-    CurrentReading: SensorType.CURRENT,
-}
-_SENSOR_TYPE_TO_READING: dict[SensorType, type[Reading]] = {
-    sensor_type: cls for cls, sensor_type in _READING_TO_SENSOR_TYPE.items()
-}
 
 
 def create_key(device_id: DeviceId, sensor_id: SensorId) -> str:
@@ -43,7 +33,7 @@ class RedisReadingRepository:
         key = create_key(device_id, sensor_id)
         member = json.dumps(
             {
-                "type": _READING_TO_SENSOR_TYPE[type(reading)].value,
+                "type": READING_TO_SENSOR_TYPE[type(reading)].value,
                 "value": reading.value,
             }
         )
@@ -64,5 +54,5 @@ class RedisReadingRepository:
         if not rows:
             return None
         payload = json.loads(rows[0])
-        reading_cls = _SENSOR_TYPE_TO_READING[SensorType(payload["type"])]
+        reading_cls = SENSOR_TYPE_TO_READING[SensorType(payload["type"])]
         return reading_cls(value=payload["value"])
