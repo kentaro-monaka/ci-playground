@@ -19,9 +19,16 @@ jobs:
       - name: format-check
         run: uv run ruff format --check .
       
-      - name: install socat (擬似シリアル用)
+      - name: install socat (仮想シリアル)
         run: sudo apt-get update && sudo apt-get install -y socat
       
+      - name: setup vcan (仮想CANバス)
+        run: |
+          sudo modprobe vcan
+          sudo ip link add dev vcan0 type vcan
+          sudo ip link set up vcan0
+          ip -details link show vcan0
+          
       - name: start postgres (compose)
         run: docker compose -f ops/docker-compose.yml up -d --wait
       
