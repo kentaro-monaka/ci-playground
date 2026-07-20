@@ -9,6 +9,7 @@ dependencies = [
     "paho-mqtt>=2.1.0",
     "psycopg[binary]>=3.3.4",
     "pymodbus[serial]>=3.14.0",
+    "python-can>=4.6.1",
     "redis>=8.0.0",
     "sqlalchemy>=2.0.50",
 ]
