@@ -1,7 +1,17 @@
 # Phase 3: アダプタ実装（DB）－ 契約テスト ＋ DB(Fake/SQLite/Postgres/Redis) ＋ HTTPS送信
 
-- **日付**: 2026-06-13, 2026-06-14～2026-06-25, 2026-07-17〜2026-07-19
+- **日付**: 2026-06-13, 2026-06-14～2026-06-25, 2026-07-17〜2026-07-20
 - **関連コミット/PR**:
+    - 7b8940b feat(test): 上位役クライアントで TCP ServerBus の線越し往復を検証
+    - 612dea4 feat(test): TCP ServerBus を実サーバーに束ね契約を通す
+    - a7d4907 feat(infrastructure): Modbus/TCP の ServerBus アダプタを実装
+    - bf6fe43 refactor(infrastructure): modbus_registers に docstring を追加し整形
+    - 6de8ae2 refactor(infrastructure): RegisterSpec を共有モジュールに切り出し RTU/TCP で共用
+    - 2ef7cf4 feat(test): ServerBus 契約テストを追加し InMemory Fake を束ねる
+    - 3e1f31a feat(infrastructure): InMemory Fake の ServerBus を追加
+    - faf4855 feat(application): ServerBus ポートと ServerBusError を定義
+    - e7ab577 docs(roadmap): 3-E-1 を完了
+    - acff046 docs(log): Phase 3-E-1 Modbus RTUクライアントのログを追記
     - fe92a8b feat(ci): 疑似シリアル用に socat を導入し RTU 結合テストを CI で実行
     - c483d57 feat(test): RTU FieldBus に read_reading を実装し契約6本フルで束ねる
     - eb5dec5 feat(test): RTU FieldBus を実pymodbusサーバーに束ね setpoint 契約を通す
@@ -46,7 +56,7 @@
     - fec843a feat(infrastructure): DB engine と Session factory を追加
     - 218279c feat(infrastructure): SQLAlchemy ORM モデル（ReadingRow）を追加
     - d531bed feat(application): ReadingRepostory ポートを定義（Protocol）
-- **所要時間**: 10時間
+- **所要時間**: 18時間
 
 ## 実施内容
 - ポート定義：application/ports/reading_repository.py に ReadingRepository（Protocol）を定義。save / find_latest の抽象シグネチャ
@@ -79,6 +89,12 @@
 - 契約テスト： `tests/contract/field_bus_contract.py` に6本 (setpoint往復／未書込0.0／未知read・write→例外／reading読取／未知reading→例外)
 - RTU実アダプタ： `infrastructure/rs485/rtu_field_bus.py`。`ModbusSerialClient`、`RegisterSpec`(address/scale/sensor_type)をコンストラクタ注入
 - CI： `ci.yml` に socat インストールを追加
+- ポート定義： `application/ports/server_bus.py` に `ServerBus` (Protocol・publish_reading/read_setpoint の2メソッド)と `ServerBusError` を定義
+- InMemory Fake: `infrastructure/memory/in_memory_server_bus.py`。setpoint はdict、既知センサは集合で判定
+- 契約テスト： `tests/contract/server_bus_contract.py` に4本追加
+- 【リファクタリング】`RegisterSpec` を `infrastructure/modbus_register.py` に切り出し、RTU/TCP 両アダプタを共用
+- TCP実アダプタ： `infrastructure/modbus/tcp_server_bus.py`。サーバーとイベントループを注入。
+- 結合テスト： `ModobusTcpServer` を 127.0.0.1:5020 に立て契約4本を束ねる（ローカルループバックのためCIでの環境追加不要）
 
 
 ## ポイント（学んだこと・選択の理由）
@@ -108,6 +124,8 @@
 - 後始末：実シリアルは `client.close()`、socatは `terminate()`、サーバーは `shutdown()`
 - 技術的負債=Reading⇔SensorType 対応表が4ファイル重複 (reading_payload/sqlalchemy/redis/rtu)。真の重複なので domain へ共通化予定（別回・別コミット）
 - 別途: RTU の isError→FieldBusError 翻訳を固有テストで担保（現状カバレッジ 89%、未カバー rtu_field_bus.py:57/68/80）
+- pymodbus のサーバー側 datastore API は async 専用。一方クライアントAPIは同期。
+- TCP はループバックで完結するので socat も compose も不要。CI は無変更で新テストを拾う
 
 
 ## 詰まったところ
@@ -158,12 +176,13 @@
 - **解決**: `uv add "pymodbus[serial]"`
 
 ## 結果
-- domain 65 ＋ 契約(4×5実装) 20 ＋ FieldBus契約(6×2実装) 12 + HTTPS 4 ＋ MQTT unit 4 ＋ MQTT integration 1 ＝ 106 passed、カバレッジ 93%
+- domain 65 ＋ 契約(4×5実装) 20 ＋ FieldBus契約(6×2実装) 12 + ServerBus契約(4×2実装) 8 + 線越し往復 2 + HTTPS 4 ＋ MQTT unit 4 ＋ MQTT integration 1 ＝ 116 passed、カバレッジ 93.75%
 - unit/integration を docker要否で確定、-m "not docker"で高速ループ
 - CI に dockerコンテナ（postgreSQL + Redis）を使ったDBテストを追加することができた
 - CI に respx を使ったhttps 通信テストを追加することができた
-- CI に socat を使ったModbusRYT 通信テストを追加することができた
+- CI に socat を使ったModbusRTU 通信テストを追加することができた
+- Modbus/TCP サーバーはループバック完結のため CI 無変更で通る（socat・コンテナ不要）
 
 
 ## 次の一歩
-- Phase 3-E-2: Modbus TCPサーバー追加
+- Phase 3-G: CAN。狙いはアダプタ実装ではなく **実機なしの CAN テストを CI で成立させること**（柱②）。FieldBus のポート・契約は 3-E-1 で確定済みのため新規設計はほぼ無い
