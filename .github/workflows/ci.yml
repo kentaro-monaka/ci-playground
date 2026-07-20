@@ -24,11 +24,13 @@ jobs:
       
       - name: setup vcan (仮想CANバス)
         run: |
+          sudo apt-get update
+          sudo apt-get install -y linux-modules-extra-$(uname -r)
           sudo modprobe vcan
           sudo ip link add dev vcan0 type vcan
           sudo ip link set up vcan0
           ip -details link show vcan0
-          
+
       - name: start postgres (compose)
         run: docker compose -f ops/docker-compose.yml up -d --wait
       
