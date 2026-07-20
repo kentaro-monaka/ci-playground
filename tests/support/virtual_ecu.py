@@ -31,7 +31,7 @@ class VirtualEcu:
         """停止してスレッドの終了を待つ."""
         self._stop.set()
         self._thread.join(timeout=5)
-    
+
     def _run(self) -> None:
         """停止されるまで、指令の受信と周期送信を続ける."""
         next_send = time.monotonic()

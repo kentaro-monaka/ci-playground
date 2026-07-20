@@ -14,14 +14,14 @@ from tests.support.virtual_ecu import VirtualEcu
 
 def _vcan0_exists() -> bool:
     """vcan0 インターフェースが存在するか."""
-    result = subprocess.run(
-        ["ip", "link", "show", "vcan0"], capture_output=True
-    )
+    result = subprocess.run(["ip", "link", "show", "vcan0"], capture_output=True)
     return result.returncode == 0
+
 
 pytestmark = pytest.mark.skipif(
     not _vcan0_exists(), reason="vcan0 が無い環境（WSL2 等）ではスキップ"
 )
+
 
 @pytest.fixture
 def bus_pair():
