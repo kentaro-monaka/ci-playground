@@ -69,7 +69,7 @@ ci-playground/
 | 0 | 基盤構築（uv / DDD構造 / docログ雛形） | ✅完了 | 2h（実績） |
 | 1 | 最小CI（lint→format→pytestスモーク） | ✅完了 | 1h（実績） |
 | 2 | ドメイン層（値オブジェクト・エンティティ・集約） | ✅完了 | 5h（実績） |
-| 3 | **アダプタ実装**（Python側 infrastructure：全外部依存を実機なしでテスト可能に） | 🔄進行中（6/7） | 残り 4–6h |
+| 3 | **アダプタ実装**（Python側 infrastructure：全外部依存を実機なしでテスト可能に） | ✅完了（7/7） | 実績に計上 |
 | 4 | アプリケーション層（ユースケース／サービス、ポート結線）＋ **構成ルート（DI / composition root）・全体配線** ※暫定 | 🟡暫定 | 8–12h |
 | 5 | CI品質ゲート強化（意味のあるカバレッジ※目標100%／型チェック／ミューテーションテスト）※暫定 | 🟡暫定 | 6–10h |
 | 6 | 時系列保存・可観測性（InfluxDB 等）※応用 | ⏸保留 | 6–10h |
@@ -102,11 +102,12 @@ Modbus は**役の異なる2つのポート**として実装する（同じ `dom
 | 3-E-1 | Modbus/RTU **クライアント**（BESS→現場機器 / RS485） | 擬似シリアル（pty/socat）＋ pymodbus サーバ | ✅完了 |
 | 3-E-2 | Modbus/TCP **サーバー**（上位→BESS / スレーブ） | localhostループバック | ✅完了 |
 | ~~3-F~~ | ~~Modbus/RTU~~ → **3-E-1 に統合**（RTU をクライアント本命に採用） | — | 統合 |
-| 3-G | CAN（狙いは**アダプタ実装より CI 実行環境の確立**） | python-can `virtual`（常時）＋ SocketCAN `vcan0`（CI で実物） | 未 |
+| 3-G | CAN（狙いは**アダプタ実装より CI 実行環境の確立**） | python-can `virtual`（常時）＋ SocketCAN `vcan0`（CI で実物） | ✅完了 |
 
 > **3-G の位置づけ**：FieldBus のポートと契約は 3-E-1 で確定済みのため、アダプタ実装自体は反復に近い。本命は「**実機なしの CAN テストを CI で成立させる**」こと（柱②）。
-> **環境差の実測（2026-07-20）**：WSL2 カーネルは `CONFIG_CAN=m` / `CONFIG_CAN_RAW=m` だが **`CONFIG_CAN_VCAN` が未設定**のため、手元では vcan を作れない（`--cap-add=NET_ADMIN` を足しても不可。モジュール自体が無い）。一方 GitHub Actions の ubuntu ランナーは `modprobe vcan` 可能な見込み。
+> **環境差の実測（2026-07-20）**：WSL2 カーネルは `CONFIG_CAN=m` / `CONFIG_CAN_RAW=m` だが **`CONFIG_CAN_VCAN` が未設定**のため、手元では vcan を作れない（`--cap-add=NET_ADMIN` を足しても不可。モジュール自体が無い）。GitHub Actions のランナーは `CONFIG_CAN_VCAN=m` だがクラウド向け最小構成で未導入のため、`linux-modules-extra-$(uname -r)` の追加インストールが必要だった。**同じ「vcan が無い」でも原因が異なる**（前者はカーネル再ビルドが要る／後者はパッケージ導入で解決）。
 > **解法**：契約に2実装を束ねる。`virtual` はどこでも動く常時実行、`vcan` は実物の SocketCAN。ローカルでは vcan0 の有無を `skipif` で実行時検出して自動スキップ（fakeredis／実Redis と同じ構図）。
+> **結果**：ローカル 6 skipped ／ CI 6 passed。手元では不可能な検証を CI が肩代わりする形を確立した。`FieldBus` の6本の契約が Fake / RTU / CAN virtual / CAN vcan の**4実装**で共有されている。
 
 ### Phase 4–5（北極星コアの残り・暫定）＋ 保留
 
@@ -132,11 +133,10 @@ Modbus は**役の異なる2つのポート**として実装する（同じ `dom
 
 | 区分 | 時間（目安） |
 |---|---|
-| 完了済み（Phase 0–2 ＋ 3-A〜D） | 約 18h（実績） |
-| Phase 3 残り（3-G：CAN の CI 実行環境確立） | 4–6h |
+| 完了済み（Phase 0–3：アダプタ7種すべて） | 約 18h ＋ 3-E〜3-G 分（実績・要記入） |
 | Phase 4（アプリ層＋構成ルート） | 8–12h |
 | Phase 5（CI品質ゲート） | 6–10h |
-| **北極星コア 残り合計** | **約 23–37h** |
+| **北極星コア 残り合計** | **約 14–22h** |
 | ⏸保留：Phase 6（時系列・可観測性） | 6–10h |
 | ⏸保留：Phase 7（Web＋E2E） | 15–25h |
 
