@@ -2,6 +2,15 @@
 
 - **日付**: 2026-06-13, 2026-06-14～2026-06-25, 2026-07-17〜2026-07-20
 - **関連コミット/PR**:
+    - 923ddb1 refactor(test): CAN のフレーム割り当てと組み立てを can_layout に共通化
+    - 3256cf4 fix(test): ruff check --fix & ruff format 実施
+    - d3b49bd feat(test): CAN FieldBus を実 SocketCAN(vcan0) に束ね CI で実行
+    - b75b074 feat(test): 仮想ECUを追加し CAN FieldBus を virtual バックエンドで束ねる
+    - 84ede9b feat(infrastructure): CAN FieldBus アダプタと FrameSpec を追加
+    - 6701aef refactor(domain): ReadingとSensorTypeの対応表を domain/reading_types に共通化
+    - 1a76759 feat(dev): python-can を追加 (CAN アダプタ用)
+    - 6eb5b57 fix(ci): vcan モジュール読込のため linux-modules-extra を導入
+    - 98f29bc feat(ci): 仮想CANバス(vcan0)のセットアップを追加
     - 7b8940b feat(test): 上位役クライアントで TCP ServerBus の線越し往復を検証
     - 612dea4 feat(test): TCP ServerBus を実サーバーに束ね契約を通す
     - a7d4907 feat(infrastructure): Modbus/TCP の ServerBus アダプタを実装
@@ -95,7 +104,12 @@
 - 【リファクタリング】`RegisterSpec` を `infrastructure/modbus_register.py` に切り出し、RTU/TCP 両アダプタを共用
 - TCP実アダプタ： `infrastructure/modbus/tcp_server_bus.py`。サーバーとイベントループを注入。
 - 結合テスト： `ModobusTcpServer` を 127.0.0.1:5020 に立て契約4本を束ねる（ローカルループバックのためCIでの環境追加不要）
-
+- CI: `ci.yml` に vcan セットアップ (modprobe → ip link add → set up) を追加。 `linux-modules-extra-$(uname -r)` の導入が必要だった。
+- 【リファクタリング】Reading と SensorType 対応表を `domain/reading_types.py` に共通化 (4ファイルの重複を解消)
+- CAN実アダプタ： `infrastructure/can/can_field_bus.py` と `frame_spwc.py`。
+- virtual版： `tests/unit/infrastructure/can/`。python-can の virtual バックエンドで契約6本（docker不要・どこでも実行）
+- vcan版： `tests/integration/infrastructure/can/`。実 SocketCAN(vcan0) で同じ契約6本。vcan0 の有無を `skipif` で実行時検出
+- 【リファクタリング】CAN ID 割り当てと組み立てを `tests/support/can_layout.py` に共通化（両版の差分をバス生成だけに縮小）
 
 ## ポイント（学んだこと・選択の理由）
 - 契約テストにより1つの仕様を3実装でテストできる（Fake/SQLite/実Postgres）
@@ -126,7 +140,8 @@
 - 別途: RTU の isError→FieldBusError 翻訳を固有テストで担保（現状カバレッジ 89%、未カバー rtu_field_bus.py:57/68/80）
 - pymodbus のサーバー側 datastore API は async 専用。一方クライアントAPIは同期。
 - TCP はループバックで完結するので socat も compose も不要。CI は無変更で新テストを拾う
-
+- デバイス名・インターフェース名で掴む相手（socat の pty、vcan）は越えられずランナーに直接置くしかない。物理的な内外ではなく接続の書き方が決める
+- 環境差の正体が2種類あった：CI は `CONFIG_CAN_VCAN=m` だがパッケージ未導入（＝入れれば解決）、WSL2 は未設定（＝カーネル再ビルドが必要）。同じ症状でも原因が違う
 
 ## 詰まったところ
 ### 詰まり1: コンテナリビルドで uv/Python が消失
@@ -175,14 +190,20 @@
 - **原因**: pymodbus 3.x はシリアルを optional extra 化。本体だけでは pyserial が入らない
 - **解決**: `uv add "pymodbus[serial]"`
 
+### 詰まり10: `modprobe: FATAL: Module vcan not found`（CI）
+- **症状**: CI の vcan セットアップステップが exit 1
+- **原因**: ランナーの azure カーネルはクラウド向け最小構成で、vcan は `linux-modules-extra` に分離されており未導入
+- **解決**: `sudo apt-get install -y linux-modules-extra-$(uname -r)` を前段に追加。バージョン完全一致が必須（メタパッケージでは別版が入り失敗）
+
 ## 結果
-- domain 65 ＋ 契約(4×5実装) 20 ＋ FieldBus契約(6×2実装) 12 + ServerBus契約(4×2実装) 8 + 線越し往復 2 + HTTPS 4 ＋ MQTT unit 4 ＋ MQTT integration 1 ＝ 116 passed、カバレッジ 93.75%
+- domain 65 ＋ 契約(4×5実装) 20 ＋ FieldBus契約(6×4実装) 24 + ServerBus契約(4×2実装) 8 + 線越し往復 2 + HTTPS 4 ＋ MQTT unit 4 ＋ MQTT integration 1 ＝ 128 passed、カバレッジ 94%
 - unit/integration を docker要否で確定、-m "not docker"で高速ループ
 - CI に dockerコンテナ（postgreSQL + Redis）を使ったDBテストを追加することができた
 - CI に respx を使ったhttps 通信テストを追加することができた
 - CI に socat を使ったModbusRTU 通信テストを追加することができた
 - Modbus/TCP サーバーはループバック完結のため CI 無変更で通る（socat・コンテナ不要）
+- CI に vcan を使った実 SocketCAN テストを追加できた
 
 
 ## 次の一歩
-- Phase 3-G: CAN。狙いはアダプタ実装ではなく **実機なしの CAN テストを CI で成立させること**（柱②）。FieldBus のポート・契約は 3-E-1 で確定済みのため新規設計はほぼ無い
+- Phase 4: アプリケーション層（ユースケース／ポート結合）＋構成ルート（DI）
