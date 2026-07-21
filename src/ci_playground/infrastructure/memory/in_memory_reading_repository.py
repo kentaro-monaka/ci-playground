@@ -35,6 +35,11 @@ class InMemoryFakeReadingRepository:
         row = _Record(device_id, sensor_id, reading, recorded_at)
         self._records.append(row)
 
+    @property
+    def records(self) -> list[_Record]:
+        """保存済みレコードの一覧（検証用）."""
+        return list(self._records)
+
     def find_latest(
         self,
         device_id: DeviceId,
