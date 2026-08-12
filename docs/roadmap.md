@@ -70,7 +70,7 @@ ci-playground/
 | 1 | 最小CI（lint→format→pytestスモーク） | ✅完了 | 1h（実績） |
 | 2 | ドメイン層（値オブジェクト・エンティティ・集約） | ✅完了 | 5h（実績） |
 | 3 | **アダプタ実装**（Python側 infrastructure：全外部依存を実機なしでテスト可能に） | ✅完了（7/7） | 実績に計上 |
-| 4 | アプリケーション層（ユースケース／サービス、ポート結線）＋ **構成ルート（DI / composition root）・全体配線** ※暫定 | 🟡暫定 | 8–12h |
+| 4 | アプリケーション層（ユースケース／サービス、ポート結線）＋ **構成ルート（DI / composition root）・全体配線** | ✅完了（6/6、CAN系統・PublishReadings/ApplySetpointの配線は横展開の余地あり） | 実績に計上 |
 | 5 | CI品質ゲート強化（意味のあるカバレッジ※目標100%／型チェック／ミューテーションテスト）※暫定 | 🟡暫定 | 6–10h |
 | 6 | 時系列保存・可観測性（InfluxDB 等）※応用 | ⏸保留 | 6–10h |
 | 7 | **Web UI ＋ E2E**（nginx+PHP+JS、Playwright、境界契約テスト、ポリグロットCI）※応用 | ⏸保留 | 15–25h |
@@ -109,11 +109,45 @@ Modbus は**役の異なる2つのポート**として実装する（同じ `dom
 > **解法**：契約に2実装を束ねる。`virtual` はどこでも動く常時実行、`vcan` は実物の SocketCAN。ローカルでは vcan0 の有無を `skipif` で実行時検出して自動スキップ（fakeredis／実Redis と同じ構図）。
 > **結果**：ローカル 6 skipped ／ CI 6 passed。手元では不可能な検証を CI が肩代わりする形を確立した。`FieldBus` の6本の契約が Fake / RTU / CAN virtual / CAN vcan の**4実装**で共有されている。
 
-### Phase 4–5（北極星コアの残り・暫定）＋ 保留
+### Phase 4：アプリケーション層（ユースケース＋構成ルート）
 
-- **Phase 4**：アプリケーション層（ユースケース／サービスの実装、ポート結線、Contract test）＋ **構成ルート（DI / composition root）・全体配線・統合**。＝柱①「DDDを作り切る」の総仕上げ（ポート/アダプタ/ユースケースを結線して動く全体にする）。
-- **Phase 5**：CI品質ゲート強化（意味のあるカバレッジ〔目標100%だが盲目的に追わない〕・型チェック mypy/pyright・ミューテーションテスト）。＝柱②「CI 100%チェック」の仕上げ。
-- ⏸ **保留（応用編）**：Phase 6 時系列保存・可観測性（InfluxDB 等）／ Phase 7 Web UI＋E2E。いずれも北極星の達成には必須でないため一旦保留（必要になれば着手）。
+＝柱①「DDDを作り切る」の総仕上げ（ポート/アダプタ/ユースケースを結線して動く全体にする）。
+
+**実機構成**：現場機器はCAN／RTUの2系統。**1台の物理機器＝1バス固定**（機器ごとにどちらか一方）。よって `Device` 単体・`CollectReadings` 側の変更は不要で、**構成ルート側が「Device＋対応する FieldBus 実装」のペアをバスの数だけ持ち、バスごとに実行する**。
+
+**上位・外部との対応**：上位（EMS）は Modbus TCP（`ServerBus`）、外部サーバは MQTT（`ReadingSender`）。CAN/RTU からの計測値取り込みは高頻度、MQTT送信・Modbus TCP公開は別周期でよいため、**DBを介して疎結合にする**（Python⇔Web間をDB経由で疎結合にするのと同じ思想を、フィールドバス⇔上位連携の間にも適用）。
+
+| | ユースケース | 内容 | 状態 |
+|---|---|---|---|
+| 4-A | `CollectReadings` | 実機→`FieldBus.read_reading`→`Sensor.record`→`ReadingRepository.save`。バスの数だけ構成ルートが複数回実行 | ✅完了 |
+| 4-B | `RetryingFieldBus` | `FieldBus` 実装を失敗時に自動再試行させるデコレータ | ✅完了 |
+| 4-C | `SendReadings` | `ReadingRepository.find_latest`→`ReadingSender.send`（MQTT、外部サーバへ能動送信）。`find_latest` は記録時刻を返さないため `recorded_at` は読み出し時刻（`datetime.now()`）で代用 | ✅完了 |
+| 4-D | `PublishReadings` | `ReadingRepository.find_latest`→`ServerBus.publish_reading`（Modbus TCP、EMSが読みに来るレジスタへ受動的に公開） | ✅完了 |
+| 4-E | `ApplySetpoint` | `ServerBus.read_setpoint`（EMSの指令を読む）→`Device.setpoint_ranges` の `Range.contains()` で許容範囲チェック→受理時のみ `FieldBus.write_setpoint`（現場機器へ反映）→受理可否を戻り値(`bool`)で呼び出し元に返す。EMS誤指令・通信化けから機器を守る責務をBESS側に持たせる設計判断 | ✅完了（監査ログは見送り、詳細は次項） |
+| 4-F | 構成ルート（DI / composition root） | `src/ci_playground/composition_root.py`。付帯設備（RTU接続）1系統を `Device`＋`RtuFieldBus`＋`SqlAlchemyReadingRepository`＋`MqttReadingSender` で結線し、`CollectReadings`→`SendReadings` の一気通貫を確立。CAN系統・`PublishReadings`・`ApplySetpoint` の配線は未着手（同じパターンで横展開可能） | ✅完了（範囲(i)配線のみ。実行ループ・スケジューリングは対象外、詳細は次項） |
+
+**実行時のスケジューリング（周期実行）は対象外**：構成ルートはオブジェクトグラフの組み立てまでを担う。センサごとに異なる周期での定期実行は「外部からアプリケーションを駆動する」側（Driving Adapter、`entrypoints/`に相当）の責務であり、DDDの構成ルート本来の役割（Driven側の配線）とは向きが逆のため、Phase 4のスコープには含めない。必要になれば`entrypoints/`を新設し、そこから`composition_root`の関数を呼ぶ形で追加する。
+
+**`composition_root`のテスト方針**：ロジックがほぼ無い配線コードを網羅的にユニットテストする価値は低いと判断し、`tests/integration/test_composition_root.py`に「疑似シリアル(socat)＋一時ファイルSQLite＋実Mosquittoで`CollectReadings`→`SendReadings`が一気通貫で動く」smoke testを1本だけ設置。配線ミス（引数取り違え等）は型チェック（Phase 5）で担保し、テストは「実際に動くか」の検証に絞った。`tests/support/rtu_server.py`（`serial_pair`/`modbus_server`フィクスチャ）を`tests/integration/conftest.py`経由で共有し、Phase 3の RTU結合テストと共用している。
+
+**ドメイン層の追加**：`Setpoint` エンティティは見送り（状態を持つ主体が不要と判断）。代わりに `Device` に `setpoint_ranges: dict[SetpointId, Range]` を追加し、`Sensor.allowed_range` と対称的に制御点の許容範囲というドメイン知識を保持させた（構成ルート＝インフラ寄りの層に業務ルールを漏らさないため）。
+
+**Modbus応答についての判断**：EMSからの書き込み（FC06/16）はpymodbusの標準動作のまま常にACKを返す（範囲チェックはドメイン層で後追いのため、書き込みトランザクション自体をIllegal Data Value等で拒否することはしない）。EMSへのリアルタイムなステータスフィードバック（専用レジスタでの公開）は見送り、シンプルさを優先。
+
+**監査ログ（`SetpointApplicationRepository`）は実装を見送り**：`ApplySetpoint` は当面、受理可否を戻り値の `bool` で返すだけに留めた。ポート自体の設計（`record(setpoint_id, requested_value, accepted, applied_at)`、書き込み専用、時系列DBの書き込みモデルと素直に対応）は既に検討済みなので、必要になった時点で `ApplySetpoint` に注入して呼び出す形に拡張できる。実装するとしても Phase 4 ではSQL系（既存技術）、時系列DB(InfluxDB等)実装はPhase 6に切り出す方針は維持。
+
+**再確認された技術的負債**（Phase 3から持ち越し・未着手）：
+- `Reading` 型エイリアス（`TemperatureReading | VoltageReading | CurrentReading`）が `domain/sensor.py` と `domain/device.py` の2箇所で重複定義（`domain/reading_types.py` は `sensor.py` 側を再輸入する形で依存の向きがやや歪）
+- `domain/sensor.py` の `_TYPE_READING_MAP` が `domain/reading_types.py` の `SENSOR_TYPE_TO_READING` と同一内容で重複
+
+### Phase 5：CI品質ゲート強化 ※暫定
+
+- 意味のあるカバレッジ（目標100%だが盲目的に追わない）・型チェック（mypy/pyright）・ミューテーションテスト。＝柱②「CI 100%チェック」の仕上げ。
+- テーマ・順序は要確認（推測で確定していない）。
+
+### 保留（応用編）
+
+- ⏸ Phase 6 時系列保存・可観測性（InfluxDB 等）／ Phase 7 Web UI＋E2E。いずれも北極星の達成には必須でないため一旦保留（必要になれば着手）。
 - ※「知識昇華」は特定 Phase ではなく、全フェーズ通じて `docs/` に継続。
 
 ### Phase 7：Web UI ＋ E2E
