@@ -11,7 +11,7 @@ from ci_playground.domain.readings import (
     VoltageReading,
 )
 from ci_playground.domain.sensor import Sensor
-from ci_playground.domain.values import DeviceId, SensorId
+from ci_playground.domain.values import DeviceId, Range, SensorId, SetpointId
 
 Reading = TemperatureReading | VoltageReading | CurrentReading
 
@@ -25,10 +25,12 @@ class Device:
     Attributes:
         id: 1台の物理機器を識別するID.
         sensors: この機器に紐付くセンサのリスト.
+        setpoint_ranges: この機器の各制御値の範囲.
     """
 
     id: DeviceId
     sensors: list[Sensor] = field(default_factory=list)
+    setpoint_ranges: dict[SetpointId, Range] = field(default_factory=dict)
 
     def attach_sensor(self, sensor: Sensor) -> None:
         """機器にセンサを追加する.
