@@ -13,6 +13,7 @@ class InMemoryFakeServerBus:
     ) -> None:
         self._known_sensors = set(known_sensors)
         self._setpoints = dict(setpoints)
+        self.published: list[tuple[SensorId, Reading]] = []
 
     def publish_reading(
         self,
@@ -22,6 +23,7 @@ class InMemoryFakeServerBus:
         """Reading を1件サーバーに公開する."""
         if sensor_id not in self._known_sensors:
             raise ServerBusError(f"未登録の sensor id です: {sensor_id}")
+        self.published.append((sensor_id, reading))
 
     def read_setpoint(
         self,
