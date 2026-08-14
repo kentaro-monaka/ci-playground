@@ -11,6 +11,9 @@ from pymodbus.client import ModbusSerialClient
 from ci_playground.application.ports.reading_repository import ReadingRepository
 from ci_playground.application.ports.reading_sender import ReadingSender
 from ci_playground.application.ports.server_bus import ServerBus
+from ci_playground.application.use_cases.apply_setpoint import (
+    ApplySetpoint,
+)
 from ci_playground.application.use_cases.collect_readings import (
     CollectReadings,
 )
@@ -20,7 +23,13 @@ from ci_playground.application.use_cases.send_readings import (
 )
 from ci_playground.domain.device import Device
 from ci_playground.domain.sensor import Sensor
-from ci_playground.domain.values import DeviceId, Range, SensorId, SensorType
+from ci_playground.domain.values import (
+    DeviceId,
+    Range,
+    SensorId,
+    SensorType,
+    SetpointId,
+)
 from ci_playground.infrastructure.can.can_field_bus import CanFieldBus
 from ci_playground.infrastructure.can.frame_spec import FrameSpec
 from ci_playground.infrastructure.db.connection import get_engine, session_factory
@@ -38,6 +47,8 @@ AUX_DEVICE_ID = DeviceId("dev-aux")
 AUX_TEMP_SENSOR_ID = SensorId("sen-aux-temp")
 BMS_DEVICE_ID = DeviceId("dev-bms")
 BMS_TEMP_SENSOR_ID = SensorId("sen-bms-temp")
+AUX_RELAY_SETPOINT_ID = SetpointId("sp-aux-relay")
+BMS_MC_SETPOINT_ID = SetpointId("sp-bms-mc")
 
 AUX_SENSOR_REGISTERS = {
     AUX_TEMP_SENSOR_ID: RegisterSpec(
@@ -57,11 +68,24 @@ EMS_SENSOR_REGISTERS = {
         address=21, scale=0.1, sensor_type=SensorType.TEMPERATURE
     ),
 }
+AUX_SETPOINT_REGISTERS = {
+    AUX_RELAY_SETPOINT_ID: RegisterSpec(address=10, scale=1.0),
+}
+BMS_SETPOINT_FRAMES = {
+    BMS_MC_SETPOINT_ID: FrameSpec(broadcast_id=0x200, command_id=0x300, scale=1.0),
+}
+EMS_SETPOINT_REGISTERS = {
+    BMS_MC_SETPOINT_ID: RegisterSpec(address=10, scale=1.0),
+    AUX_RELAY_SETPOINT_ID: RegisterSpec(address=11, scale=1.0),
+}
 
 
 def build_aux_device() -> Device:
     """付帯設備（RTU接続）の Device を組み立てる."""
-    device = Device(id=AUX_DEVICE_ID)
+    device = Device(
+        id=AUX_DEVICE_ID,
+        setpoint_ranges={AUX_RELAY_SETPOINT_ID: Range(0.0, 1.0)},
+    )
     device.attach_sensor(
         Sensor(AUX_TEMP_SENSOR_ID, SensorType.TEMPERATURE, Range(-20.0, 80.0))
     )
@@ -77,7 +101,7 @@ def build_rtu_field_bus() -> RtuFieldBus:
     return RtuFieldBus(
         client=client,
         device_id=int(os.environ.get("RTU_AUX_UNIT_ID", "1")),
-        setpoint_registers={},
+        setpoint_registers=AUX_SETPOINT_REGISTERS,
         sensor_registers=AUX_SENSOR_REGISTERS,
     )
 
@@ -106,6 +130,7 @@ class AuxComposition:
     collect_readings: CollectReadings
     send_readings: SendReadings
     publish_readings: PublishReadings
+    apply_setpoint: ApplySetpoint
 
 
 def build_aux_composition(
@@ -122,12 +147,16 @@ def build_aux_composition(
         collect_readings=CollectReadings(field_bus, repository),
         send_readings=SendReadings(repository, sender),
         publish_readings=PublishReadings(repository, server_bus),
+        apply_setpoint=ApplySetpoint(server_bus, field_bus),
     )
 
 
 def build_bms_device() -> Device:
     """BMS本体の Device を組み立てる."""
-    device = Device(id=BMS_DEVICE_ID)
+    device = Device(
+        id=BMS_DEVICE_ID,
+        setpoint_ranges={BMS_MC_SETPOINT_ID: Range(0.0, 1.0)},
+    )
     device.attach_sensor(
         Sensor(BMS_TEMP_SENSOR_ID, SensorType.TEMPERATURE, Range(-20.0, 80.0))
     )
@@ -143,7 +172,7 @@ def build_can_field_bus() -> CanFieldBus:
     )
     return CanFieldBus(
         bus=bus,
-        setpoint_frames={},
+        setpoint_frames=BMS_SETPOINT_FRAMES,
         sensor_frames=BMS_SENSOR_FRAMES,
     )
 
@@ -156,6 +185,7 @@ class BmsComposition:
     collect_readings: CollectReadings
     send_readings: SendReadings
     publish_readings: PublishReadings
+    apply_setpoint: ApplySetpoint
 
 
 def build_bms_composition(
@@ -170,6 +200,7 @@ def build_bms_composition(
         collect_readings=CollectReadings(field_bus, repository),
         send_readings=SendReadings(repository, sender),
         publish_readings=PublishReadings(repository, server_bus),
+        apply_setpoint=ApplySetpoint(server_bus, field_bus),
     )
 
 
@@ -200,5 +231,5 @@ def build_server_bus() -> TcpServerBus:
         port=int(os.environ.get("MODBUS_EMS_PORT", "502")),
         device_id=1,
         sensor_registers=EMS_SENSOR_REGISTERS,
-        setpoint_registers={},
+        setpoint_registers=EMS_SETPOINT_REGISTERS,
     )
