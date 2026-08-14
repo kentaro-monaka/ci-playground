@@ -4,6 +4,8 @@ from pymodbus.client import ModbusTcpClient
 from sqlalchemy import create_engine
 
 from ci_playground.composition_root import (
+    AUX_RELAY_SETPOINT_ID,
+    BMS_MC_SETPOINT_ID,
     build_composition,
 )
 from ci_playground.domain.readings import TemperatureReading
@@ -65,6 +67,19 @@ def test_composition_collects_and_sends_both_systems(
     bms_result = upper_client.read_holding_registers(21, count=1, device_id=1)
     assert aux_result.registers[0] == 250  # 25.0 / scale(0.1)
     assert bms_result.registers[0] == 250
+
+    upper_client.write_register(10, 1, device_id=1)  # BMS向けMC指令
+    upper_client.write_register(11, 1, device_id=1)  # AUX向けリレー指令
+
+    aux_accepted = composition.aux.apply_setpoint.execute(
+        composition.aux.device, AUX_RELAY_SETPOINT_ID
+    )
+    bms_accepted = composition.bms.apply_setpoint.execute(
+        composition.bms.device, BMS_MC_SETPOINT_ID
+    )
+    assert aux_accepted is True
+    assert bms_accepted is True
+
     upper_client.close()
 
     ecu.stop()
