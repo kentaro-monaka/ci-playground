@@ -70,7 +70,7 @@ ci-playground/
 | 1 | 最小CI（lint→format→pytestスモーク） | ✅完了 | 1h（実績） |
 | 2 | ドメイン層（値オブジェクト・エンティティ・集約） | ✅完了 | 5h（実績） |
 | 3 | **アダプタ実装**（Python側 infrastructure：全外部依存を実機なしでテスト可能に） | ✅完了（7/7） | 実績に計上 |
-| 4 | アプリケーション層（ユースケース／サービス、ポート結線）＋ **構成ルート（DI / composition root）・全体配線** | ✅完了（6/6、CAN系統・PublishReadings/ApplySetpointの配線は横展開の余地あり） | 実績に計上 |
+| 4 | アプリケーション層（ユースケース／サービス、ポート結線）＋ **構成ルート（DI / composition root）・全体配線** | ✅完了（6/6、CAN(BMS)系統のCollectReadings/SendReadings配線を追加済み。PublishReadings/ApplySetpointの配線は横展開の余地あり） | 実績に計上 |
 | 5 | CI品質ゲート強化（意味のあるカバレッジ※目標100%／型チェック／ミューテーションテスト）※暫定 | 🟡暫定 | 6–10h |
 | 6 | 時系列保存・可観測性（InfluxDB 等）※応用 | ⏸保留 | 6–10h |
 | 7 | **Web UI ＋ E2E**（nginx+PHP+JS、Playwright、境界契約テスト、ポリグロットCI）※応用 | ⏸保留 | 15–25h |
@@ -124,11 +124,19 @@ Modbus は**役の異なる2つのポート**として実装する（同じ `dom
 | 4-C | `SendReadings` | `ReadingRepository.find_latest`→`ReadingSender.send`（MQTT、外部サーバへ能動送信）。`find_latest` は記録時刻を返さないため `recorded_at` は読み出し時刻（`datetime.now()`）で代用 | ✅完了 |
 | 4-D | `PublishReadings` | `ReadingRepository.find_latest`→`ServerBus.publish_reading`（Modbus TCP、EMSが読みに来るレジスタへ受動的に公開） | ✅完了 |
 | 4-E | `ApplySetpoint` | `ServerBus.read_setpoint`（EMSの指令を読む）→`Device.setpoint_ranges` の `Range.contains()` で許容範囲チェック→受理時のみ `FieldBus.write_setpoint`（現場機器へ反映）→受理可否を戻り値(`bool`)で呼び出し元に返す。EMS誤指令・通信化けから機器を守る責務をBESS側に持たせる設計判断 | ✅完了（監査ログは見送り、詳細は次項） |
-| 4-F | 構成ルート（DI / composition root） | `src/ci_playground/composition_root.py`。付帯設備（RTU接続）1系統を `Device`＋`RtuFieldBus`＋`SqlAlchemyReadingRepository`＋`MqttReadingSender` で結線し、`CollectReadings`→`SendReadings` の一気通貫を確立。CAN系統・`PublishReadings`・`ApplySetpoint` の配線は未着手（同じパターンで横展開可能） | ✅完了（範囲(i)配線のみ。実行ループ・スケジューリングは対象外、詳細は次項） |
+| 4-F | 構成ルート（DI / composition root） | `src/ci_playground/composition_root.py`。付帯設備（RTU接続）・BMS（CAN接続）の2系統を、それぞれ `Device`＋`FieldBus`実装＋`CollectReadings`→`SendReadings`→`PublishReadings`で結線。`repository`／`sender`／`server_bus`は`build_composition()`で1回だけ組み立てて両系統に共有する。`ApplySetpoint` の配線は未着手（同じパターンで横展開可能） | ✅完了（範囲(i)配線のみ。実行ループ・スケジューリングは対象外、詳細は次項） |
 
 **実行時のスケジューリング（周期実行）は対象外**：構成ルートはオブジェクトグラフの組み立てまでを担う。センサごとに異なる周期での定期実行は「外部からアプリケーションを駆動する」側（Driving Adapter、`entrypoints/`に相当）の責務であり、DDDの構成ルート本来の役割（Driven側の配線）とは向きが逆のため、Phase 4のスコープには含めない。必要になれば`entrypoints/`を新設し、そこから`composition_root`の関数を呼ぶ形で追加する。
 
 **`composition_root`のテスト方針**：ロジックがほぼ無い配線コードを網羅的にユニットテストする価値は低いと判断し、`tests/integration/test_composition_root.py`に「疑似シリアル(socat)＋一時ファイルSQLite＋実Mosquittoで`CollectReadings`→`SendReadings`が一気通貫で動く」smoke testを1本だけ設置。配線ミス（引数取り違え等）は型チェック（Phase 5）で担保し、テストは「実際に動くか」の検証に絞った。`tests/support/rtu_server.py`（`serial_pair`/`modbus_server`フィクスチャ）を`tests/integration/conftest.py`経由で共有し、Phase 3の RTU結合テストと共用している。
+
+**BMS（CAN）系統の追加と共有アダプタ設計**：`build_aux_composition()` は当初、内部で `repository`／`sender` を自前生成していたが、CAN(BMS)系統を追加するにあたりポート型（`ReadingRepository`／`ReadingSender`）の引数として外部から受け取る形に変更した。`ReadingRepository` は `(DeviceId, SensorId)` 単位でキーが分かれるため、AUX（`dev-aux`）とBMS（`dev-bms`）が同一インスタンスを共有しても行が衝突することはない。MQTTクライアント（`sender`）も1本を両系統で使い回すが、`SendReadings.execute()` は呼び出し元が1回ずつ同期的に呼ぶ前提のため、現状のスコープでは並行アクセスの懸念は生じない。トップレベルの `build_composition()` が共有アダプタを1回だけ組み立て、`build_aux_composition()`・`build_bms_composition()` の両方に配って束ねる。
+
+**smoke testの拡張**：`test_composition_root.py` のsmoke testを、AUX単体の検証から `build_composition()` を通してAUX＋BMS両系統を一度に検証する形に置き換えた。BMS側はSocketCAN（`vcan0`）が必要なため、Phase 3で確立した「`vcan0` の有無を `skipif` で実行時検出」という仕組みを再利用。判定関数 `vcan0_exists()` は `test_vcan_field_bus.py` との重複（2箇所目の出現）を機に `tests/support/can_layout.py` へ共通化した。`PublishReadings`追加後は、EMS役の`ModbusTcpClient`でAUX/BMS両方のレジスタ値を実際に読み、公開された値まで検証する形に拡張している。この環境（`vcan0`なし）ではskipされるため、動作確認はCIに委ねる。
+
+**`PublishReadings`の配線とサーバー起動責務の置き場所**：`ServerBus`実装の`TcpServerBus`はEMS向けModbus TCPサーバーを必要とするが、他の`build_*`関数（クライアント接続を1回作るだけ）と違い「非同期イベントループを別スレッドで回し続ける」という重い起動処理を伴う。当初はcomposition_root側に直接書く案だったが、「クライアントの組み立て」ではなく「pymodbusサーバーをどう正しく起動・運用するか」という技術固有の知識と判断し、`TcpServerBus.start(host, port, device_id, sensor_registers, setpoint_registers)`というクラスメソッド（ファクトリ）としてinfra層（`infrastructure/modbus/tcp_server_bus.py`）に実装した。composition_root側の`build_server_bus()`はこれを呼ぶだけの薄い関数になっている。データストアは結合テストで使っていた`pymodbus.simulator`の`SimData`/`SimDevice`（名前の通りテスト用）ではなく、pymodbus標準の`ModbusServerContext`＋`ModbusDeviceContext`＋`ModbusSequentialDataBlock`を採用。
+
+**EMS向けレジスタ番地の統合**：AUX・BMSどちらの計測値も同じ`TcpServerBus`（1台のサーバー）に公開するため、`EMS_SENSOR_REGISTERS`という1つのマップに両センサの番地をまとめて重複を避けている（RTU側の現場機器内レジスタ番地`AUX_SENSOR_REGISTERS`とは別のModbusコンテキストなので、双方に`address=20`が存在しても衝突しない。EMS向けの1台のサーバー内で番地が重複しないことが重要）。`server_bus`も`repository`／`sender`と同様、`build_composition()`で1回だけ組み立てて両系統に共有する。
 
 **ドメイン層の追加**：`Setpoint` エンティティは見送り（状態を持つ主体が不要と判断）。代わりに `Device` に `setpoint_ranges: dict[SetpointId, Range]` を追加し、`Sensor.allowed_range` と対称的に制御点の許容範囲というドメイン知識を保持させた（構成ルート＝インフラ寄りの層に業務ルールを漏らさないため）。
 
