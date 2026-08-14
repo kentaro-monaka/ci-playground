@@ -1,6 +1,14 @@
 """pymodbus (TCP) を使った ServerBus サーバーの実装."""
 
 import asyncio
+import threading
+
+from pymodbus.datastore import (
+    ModbusDeviceContext,
+    ModbusSequentialDataBlock,
+    ModbusServerContext,
+)
+from pymodbus.server import ModbusTcpServer
 
 from ci_playground.application.ports.server_bus import ServerBusError
 from ci_playground.domain.sensor import Reading
@@ -52,3 +60,43 @@ class TcpServerBus:
             self._loop,
         ).result()
         return regs[0] * spec.scale
+
+    @classmethod
+    def start(
+        cls,
+        host: str,
+        port: int,
+        device_id: int,
+        sensor_registers: dict[SensorId, RegisterSpec],
+        setpoint_registers: dict[SetpointId, RegisterSpec],
+    ) -> "TcpServerBus":
+        """Modbus TCP サーバーを起動し、束ねた TcpServerBus を返す."""
+        box: dict = {}
+        ready = threading.Event()
+
+        def run() -> None:
+            async def main() -> None:
+                context = ModbusServerContext(
+                    devices=ModbusDeviceContext(
+                        hr=ModbusSequentialDataBlock(0, [0] * 100)
+                    ),
+                    single=True,
+                )
+                server = ModbusTcpServer(context, address=(host, port))
+                box["server"] = server
+                box["loop"] = asyncio.get_running_loop()
+                ready.set()
+                await server.serve_forever()
+
+            asyncio.run(main())
+
+        threading.Thread(target=run, daemon=True).start()
+        ready.wait(timeout=5)
+
+        return cls(
+            server=box["server"],
+            loop=box["loop"],
+            device_id=device_id,
+            sensor_registers=sensor_registers,
+            setpoint_registers=setpoint_registers,
+        )
