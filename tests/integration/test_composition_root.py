@@ -1,5 +1,6 @@
 import can
 import pytest
+from pymodbus.client import ModbusTcpClient
 from sqlalchemy import create_engine
 
 from ci_playground.composition_root import (
@@ -27,6 +28,8 @@ def test_composition_collects_and_sends_both_systems(
     monkeypatch.setenv("DATABASE_URL", db_url)
     monkeypatch.setenv("RTU_AUX_PORT", modbus_server)
     monkeypatch.setenv("CAN_BMS_CHANNEL", "vcan0")
+    monkeypatch.setenv("MODBUS_EMS_HOST", "127.0.0.1")
+    monkeypatch.setenv("MODBUS_EMS_PORT", "5030")
 
     can_bus = can.Bus(interface="socketcan", channel="vcan0")
     ecu = build_ecu(can_bus)
@@ -52,6 +55,17 @@ def test_composition_collects_and_sends_both_systems(
 
     composition.aux.send_readings.execute(composition.aux.device.id, aux_sensor_id)
     composition.bms.send_readings.execute(composition.bms.device.id, bms_sensor_id)
+
+    composition.aux.publish_readings.execute(composition.aux.device.id, aux_sensor_id)
+    composition.bms.publish_readings.execute(composition.bms.device.id, bms_sensor_id)
+
+    upper_client = ModbusTcpClient("127.0.0.1", port=5030)
+    upper_client.connect()
+    aux_result = upper_client.read_holding_registers(20, count=1, device_id=1)
+    bms_result = upper_client.read_holding_registers(21, count=1, device_id=1)
+    assert aux_result.registers[0] == 250  # 25.0 / scale(0.1)
+    assert bms_result.registers[0] == 250
+    upper_client.close()
 
     ecu.stop()
     can_bus.shutdown()
