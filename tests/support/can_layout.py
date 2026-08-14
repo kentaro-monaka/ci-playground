@@ -1,5 +1,7 @@
 """CAN テスト共通のフレーム割り当てと組み立て."""
 
+import subprocess
+
 import can
 
 from ci_playground.domain.values import SensorId, SensorType, SetpointId
@@ -25,6 +27,12 @@ SENSOR_FRAMES = {
         sensor_type=SensorType.TEMPERATURE,
     )
 }
+
+
+def vcan0_exists() -> bool:
+    """vcan0 インターフェースが存在するか."""
+    result = subprocess.run(["ip", "link", "show", "vcan0"], capture_output=True)
+    return result.returncode == 0
 
 
 def build_ecu(bus: can.BusABC) -> VirtualEcu:

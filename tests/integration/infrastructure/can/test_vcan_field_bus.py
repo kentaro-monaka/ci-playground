@@ -1,22 +1,13 @@
 """CAN FieldBus アダプタを SocketCAN(vcan0) に束ねるテスト."""
 
-import subprocess
-
 import can
 import pytest
 
 from tests.contract.field_bus_contract import FieldBusContract
-from tests.support.can_layout import build_ecu, build_field_bus
-
-
-def _vcan0_exists() -> bool:
-    """vcan0 インターフェースが存在するか."""
-    result = subprocess.run(["ip", "link", "show", "vcan0"], capture_output=True)
-    return result.returncode == 0
-
+from tests.support.can_layout import build_ecu, build_field_bus, vcan0_exists
 
 pytestmark = pytest.mark.skipif(
-    not _vcan0_exists(), reason="vcan0 が無い環境（WSL2 等）ではスキップ"
+    not vcan0_exists(), reason="vcan0 が無い環境（WSL2 等）ではスキップ"
 )
 
 
