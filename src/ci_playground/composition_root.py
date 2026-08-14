@@ -1,12 +1,15 @@
-"""構成ルート：付帯設備（RTU接続）の Device ・アダプタ・ユースケースを組み立てる."""
+"""構成ルート：BMS・付帯設備（RTU接続）の Device ・アダプタ・ユースケースを組立."""
 
 import os
 from dataclasses import dataclass
 
+import can
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 from pymodbus.client import ModbusSerialClient
 
+from ci_playground.application.ports.reading_repository import ReadingRepository
+from ci_playground.application.ports.reading_sender import ReadingSender
 from ci_playground.application.use_cases.collect_readings import (
     CollectReadings,
 )
@@ -16,6 +19,8 @@ from ci_playground.application.use_cases.send_readings import (
 from ci_playground.domain.device import Device
 from ci_playground.domain.sensor import Sensor
 from ci_playground.domain.values import DeviceId, Range, SensorId, SensorType
+from ci_playground.infrastructure.can.can_field_bus import CanFieldBus
+from ci_playground.infrastructure.can.frame_spec import FrameSpec
 from ci_playground.infrastructure.db.connection import get_engine, session_factory
 from ci_playground.infrastructure.db.sqlalchemy_reading_repository import (
     SqlAlchemyReadingRepository,
@@ -28,10 +33,17 @@ from ci_playground.infrastructure.rs485.rtu_field_bus import RtuFieldBus
 
 AUX_DEVICE_ID = DeviceId("dev-aux")
 AUX_TEMP_SENSOR_ID = SensorId("sen-aux-temp")
+BMS_DEVICE_ID = DeviceId("dev-bms")
+BMS_TEMP_SENSOR_ID = SensorId("sen-bms-temp")
 
 AUX_SENSOR_REGISTERS = {
     AUX_TEMP_SENSOR_ID: RegisterSpec(
         address=20, scale=0.1, sensor_type=SensorType.TEMPERATURE
+    ),
+}
+BMS_SENSOR_FRAMES = {
+    BMS_TEMP_SENSOR_ID: FrameSpec(
+        broadcast_id=0x100, scale=0.1, sensor_type=SensorType.TEMPERATURE
     ),
 }
 
@@ -84,15 +96,81 @@ class AuxComposition:
     send_readings: SendReadings
 
 
-def build_aux_composition() -> AuxComposition:
+def build_aux_composition(
+    repository: ReadingRepository,
+    sender: ReadingSender,
+) -> AuxComposition:
     """付帯設備向けの Device・アダプタ・ユースケースを一式組み立てる."""
     device = build_aux_device()
     field_bus = build_rtu_field_bus()
-    repository = build_reading_repository()
-    sender = build_reading_sender()
 
     return AuxComposition(
         device=device,
         collect_readings=CollectReadings(field_bus, repository),
         send_readings=SendReadings(repository, sender),
+    )
+
+
+def build_bms_device() -> Device:
+    """BMS本体の Device を組み立てる."""
+    device = Device(id=BMS_DEVICE_ID)
+    device.attach_sensor(
+        Sensor(BMS_TEMP_SENSOR_ID, SensorType.TEMPERATURE, Range(-20.0, 80.0))
+    )
+    return device
+
+
+def build_can_field_bus() -> CanFieldBus:
+    """BMS本体向けの CanFieldBus を組み立てる."""
+    bus = can.Bus(
+        interface=os.environ.get("CAN_BMS_INTERFACE", "socketcan"),
+        channel=os.environ["CAN_BMS_CHANNEL"],
+        bitrate=int(os.environ.get("CAN_BMS_BITRATE", "500000")),
+    )
+    return CanFieldBus(
+        bus=bus,
+        setpoint_frames={},
+        sensor_frames=BMS_SENSOR_FRAMES,
+    )
+
+
+@dataclass(frozen=True)
+class BmsComposition:
+    """BMS本体向けに組み立てたユースケース一式."""
+
+    device: Device
+    collect_readings: CollectReadings
+    send_readings: SendReadings
+
+
+def build_bms_composition(
+    repository: ReadingRepository, sender: ReadingSender
+) -> BmsComposition:
+    """BMS本体向けの Device・アダプタ・ユースケースを一式組み立てる."""
+    device = build_bms_device()
+    field_bus = build_can_field_bus()
+
+    return BmsComposition(
+        device=device,
+        collect_readings=CollectReadings(field_bus, repository),
+        send_readings=SendReadings(repository, sender),
+    )
+
+
+@dataclass(frozen=True)
+class Composition:
+    """付帯設備・BMS、両系統をまとめた構成一式."""
+
+    aux: AuxComposition
+    bms: BmsComposition
+
+
+def build_composition() -> Composition:
+    """共有アダプタ（repository/sender）を1回だけ組み立て、両系統に配って束ねる."""
+    repository = build_reading_repository()
+    sender = build_reading_sender()
+
+    return Composition(
+        aux=build_aux_composition(repository, sender),
+        bms=build_bms_composition(repository, sender),
     )
