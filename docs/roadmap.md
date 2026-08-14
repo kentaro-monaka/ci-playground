@@ -70,7 +70,7 @@ ci-playground/
 | 1 | 最小CI（lint→format→pytestスモーク） | ✅完了 | 1h（実績） |
 | 2 | ドメイン層（値オブジェクト・エンティティ・集約） | ✅完了 | 5h（実績） |
 | 3 | **アダプタ実装**（Python側 infrastructure：全外部依存を実機なしでテスト可能に） | ✅完了（7/7） | 実績に計上 |
-| 4 | アプリケーション層（ユースケース／サービス、ポート結線）＋ **構成ルート（DI / composition root）・全体配線** | ✅完了（6/6、CAN(BMS)系統のCollectReadings/SendReadings配線を追加済み。PublishReadings/ApplySetpointの配線は横展開の余地あり） | 実績に計上 |
+| 4 | アプリケーション層（ユースケース／サービス、ポート結線）＋ **構成ルート（DI / composition root）・全体配線** | ✅完了（6/6、CollectReadings/SendReadings/PublishReadings/ApplySetpointをAUX・BMS両系統に配線済み） | 実績に計上 |
 | 5 | CI品質ゲート強化（意味のあるカバレッジ※目標100%／型チェック／ミューテーションテスト）※暫定 | 🟡暫定 | 6–10h |
 | 6 | 時系列保存・可観測性（InfluxDB 等）※応用 | ⏸保留 | 6–10h |
 | 7 | **Web UI ＋ E2E**（nginx+PHP+JS、Playwright、境界契約テスト、ポリグロットCI）※応用 | ⏸保留 | 15–25h |
@@ -124,7 +124,7 @@ Modbus は**役の異なる2つのポート**として実装する（同じ `dom
 | 4-C | `SendReadings` | `ReadingRepository.find_latest`→`ReadingSender.send`（MQTT、外部サーバへ能動送信）。`find_latest` は記録時刻を返さないため `recorded_at` は読み出し時刻（`datetime.now()`）で代用 | ✅完了 |
 | 4-D | `PublishReadings` | `ReadingRepository.find_latest`→`ServerBus.publish_reading`（Modbus TCP、EMSが読みに来るレジスタへ受動的に公開） | ✅完了 |
 | 4-E | `ApplySetpoint` | `ServerBus.read_setpoint`（EMSの指令を読む）→`Device.setpoint_ranges` の `Range.contains()` で許容範囲チェック→受理時のみ `FieldBus.write_setpoint`（現場機器へ反映）→受理可否を戻り値(`bool`)で呼び出し元に返す。EMS誤指令・通信化けから機器を守る責務をBESS側に持たせる設計判断 | ✅完了（監査ログは見送り、詳細は次項） |
-| 4-F | 構成ルート（DI / composition root） | `src/ci_playground/composition_root.py`。付帯設備（RTU接続）・BMS（CAN接続）の2系統を、それぞれ `Device`＋`FieldBus`実装＋`CollectReadings`→`SendReadings`→`PublishReadings`で結線。`repository`／`sender`／`server_bus`は`build_composition()`で1回だけ組み立てて両系統に共有する。`ApplySetpoint` の配線は未着手（同じパターンで横展開可能） | ✅完了（範囲(i)配線のみ。実行ループ・スケジューリングは対象外、詳細は次項） |
+| 4-F | 構成ルート（DI / composition root） | `src/ci_playground/composition_root.py`。付帯設備（RTU接続）・BMS（CAN接続）の2系統を、それぞれ `Device`＋`FieldBus`実装＋`CollectReadings`→`SendReadings`→`PublishReadings`→`ApplySetpoint`で結線。`repository`／`sender`／`server_bus`は`build_composition()`で1回だけ組み立てて両系統に共有する | ✅完了（範囲(i)配線のみ。実行ループ・スケジューリングは対象外、詳細は次項） |
 
 **実行時のスケジューリング（周期実行）は対象外**：構成ルートはオブジェクトグラフの組み立てまでを担う。センサごとに異なる周期での定期実行は「外部からアプリケーションを駆動する」側（Driving Adapter、`entrypoints/`に相当）の責務であり、DDDの構成ルート本来の役割（Driven側の配線）とは向きが逆のため、Phase 4のスコープには含めない。必要になれば`entrypoints/`を新設し、そこから`composition_root`の関数を呼ぶ形で追加する。
 
@@ -139,6 +139,10 @@ Modbus は**役の異なる2つのポート**として実装する（同じ `dom
 **データストア選定の訂正**：当初「`pymodbus.simulator`の`SimData`/`SimDevice`は名前からしてテスト専用、本番は`ModbusServerContext`＋`ModbusDeviceContext`＋`ModbusSequentialDataBlock`」と判断したが誤りだった。実装してCIで検証したところ`ModbusSequentialDataBlock(0, [0] * 100)`（先頭アドレス0）が`TypeError: 0 <= address < 65535`でクラッシュし、`ready`の合図が来ないまま`box["server"]`が空の状態で`KeyError: 'server'`になる形で発覚。pymodbus 3.14.0のソース（`datastore/context.py`）を確認すると、`ModbusDeviceContext`は非推奨（v4で削除予定）で、内部では結局`SimDevice`を組み立てて委譲しているだけだった。`pymodbus.simulator`モジュールのdocstring（「experimental、本番非対応」）は移行前の古い記述が残っていたもので、実際のコード（deprecation警告・内部委譲）の方が正しい。教訓：ライブラリのクラス名や一部docstringの見た目だけで判断せず、実装のソースコードで裏取りする。最終的に`SimData`/`SimDevice`を採用し、CIで再現した`KeyError`は解消した。
 
 **EMS向けレジスタ番地の統合**：AUX・BMSどちらの計測値も同じ`TcpServerBus`（1台のサーバー）に公開するため、`EMS_SENSOR_REGISTERS`という1つのマップに両センサの番地をまとめて重複を避けている（RTU側の現場機器内レジスタ番地`AUX_SENSOR_REGISTERS`とは別のModbusコンテキストなので、双方に`address=20`が存在しても衝突しない。EMS向けの1台のサーバー内で番地が重複しないことが重要）。`server_bus`も`repository`／`sender`と同様、`build_composition()`で1回だけ組み立てて両系統に共有する。
+
+**`ApplySetpoint`の配線とAUX/BMSそれぞれの制御対象の見直し**：当初BMS(CAN)側に「電力指令（連続値）」を割り当てる案を出したが、これは誤りだった。BMSはPCS（電力変換装置）ではなくバッテリー保護・監視が役目であり、電力を直接制御する立場にない。実際にCAN側で扱うべきは電磁接触器（MC）のON/OFF指令であり、これはAUX側のリレーON/OFFと同じ「離散的な制御」である。教訓：ユーザーから示された用語（「MC制御」）を自分の思い込み（連続値の力行/回生制御）に寄せて解釈せず、用語の指す実体を確認してから設計する。最終的に両系統とも`Range(0.0, 1.0)`（ON/OFF）の`setpoint_ranges`を`Device`に持たせ、`ApplySetpoint(server_bus, field_bus)`をAUX・BMS双方の構成に配線した。EMS向け`setpoint_registers`（`EMS_SETPOINT_REGISTERS`）と現場機器向け`setpoint_registers`/`setpoint_frames`（`AUX_SETPOINT_REGISTERS`/`BMS_SETPOINT_FRAMES`）は、同じ`setpoint_id`が指す論理的な指令値を別々の物理バス（EMS向けTCP・現場機器向けCAN/RTU）でそれぞれ運ぶ、という構造。
+
+**smoke testでの検証範囲**：`ApplySetpoint`の内部ロジック（範囲チェック・受理可否）は専用unit testで既にカバー済みのため、smoke testでは配線確認に絞り、EMS役の`ModbusTcpClient`で指令値を書き込んだ後`apply_setpoint.execute()`の戻り値（`bool`）が`True`になることだけを確認している。
 
 **ドメイン層の追加**：`Setpoint` エンティティは見送り（状態を持つ主体が不要と判断）。代わりに `Device` に `setpoint_ranges: dict[SetpointId, Range]` を追加し、`Sensor.allowed_range` と対称的に制御点の許容範囲というドメイン知識を保持させた（構成ルート＝インフラ寄りの層に業務ルールを漏らさないため）。
 
