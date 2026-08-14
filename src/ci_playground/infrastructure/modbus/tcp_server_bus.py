@@ -3,12 +3,9 @@
 import asyncio
 import threading
 
-from pymodbus.datastore import (
-    ModbusDeviceContext,
-    ModbusSequentialDataBlock,
-    ModbusServerContext,
-)
 from pymodbus.server import ModbusTcpServer
+from pymodbus.simulator import SimData, SimDevice
+from pymodbus.simulator.simdata import DataType
 
 from ci_playground.application.ports.server_bus import ServerBusError
 from ci_playground.domain.sensor import Reading
@@ -76,13 +73,9 @@ class TcpServerBus:
 
         def run() -> None:
             async def main() -> None:
-                context = ModbusServerContext(
-                    devices=ModbusDeviceContext(
-                        hr=ModbusSequentialDataBlock(0, [0] * 100)
-                    ),
-                    single=True,
-                )
-                server = ModbusTcpServer(context, address=(host, port))
+                sim_data = SimData(0, count=100, values=0, datatype=DataType.REGISTERS)
+                device = SimDevice(device_id, simdata=[sim_data])
+                server = ModbusTcpServer(device, address=(host, port))
                 box["server"] = server
                 box["loop"] = asyncio.get_running_loop()
                 ready.set()
