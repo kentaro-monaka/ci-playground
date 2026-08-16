@@ -33,7 +33,7 @@ class Range:
     min: float
     max: float
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.min > self.max:
             raise ValueError(
                 f"最小値が最大値より大きい min: {self.min}, max: {self.max}"
@@ -66,7 +66,7 @@ class SensorId:
 
     value: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.value.strip() == "":
             raise ValueError(f"sensor_id 空文字のためエラー: {self.value}")
 
@@ -86,7 +86,7 @@ class DeviceId:
 
     value: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.value.strip() == "":
             raise ValueError(f"device_id 空文字のためエラー: {self.value}")
 
@@ -106,6 +106,6 @@ class SetpointId:
 
     value: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.value.strip() == "":
             raise ValueError(f"setpoint_id 空文字のためエラー: {self.value}")
