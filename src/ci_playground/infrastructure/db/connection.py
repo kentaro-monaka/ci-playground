@@ -19,6 +19,6 @@ def get_engine(url: str | None = None) -> Engine:
     return create_engine(url, echo=False)
 
 
-def session_factory(engine) -> sessionmaker[Session]:
+def session_factory(engine: Engine) -> sessionmaker[Session]:
     """Session factory を返す."""
     return sessionmaker(bind=engine, expire_on_commit=False)

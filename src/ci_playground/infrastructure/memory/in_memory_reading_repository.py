@@ -21,7 +21,7 @@ class InMemoryFakeReadingRepository:
     """Reading をメモリ上のリスト に保存・取得する Fake."""
 
     def __init__(self) -> None:
-        self._records = []
+        self._records: list[_Record] = []
 
     def save(
         self,

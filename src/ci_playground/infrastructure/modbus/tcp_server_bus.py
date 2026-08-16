@@ -2,10 +2,10 @@
 
 import asyncio
 import threading
+from typing import Any
 
 from pymodbus.server import ModbusTcpServer
-from pymodbus.simulator import SimData, SimDevice
-from pymodbus.simulator.simdata import DataType
+from pymodbus.simulator import DataType, SimData, SimDevice
 
 from ci_playground.application.ports.server_bus import ServerBusError
 from ci_playground.domain.sensor import Reading
@@ -20,8 +20,8 @@ class TcpServerBus:
 
     def __init__(
         self,
-        server,
-        loop,
+        server: ModbusTcpServer,
+        loop: asyncio.AbstractEventLoop,
         device_id: int,
         sensor_registers: dict[SensorId, RegisterSpec],
         setpoint_registers: dict[SetpointId, RegisterSpec],
@@ -56,7 +56,7 @@ class TcpServerBus:
             ),
             self._loop,
         ).result()
-        return regs[0] * spec.scale
+        return float(regs[0]) * spec.scale
 
     @classmethod
     def start(
@@ -68,7 +68,7 @@ class TcpServerBus:
         setpoint_registers: dict[SetpointId, RegisterSpec],
     ) -> "TcpServerBus":
         """Modbus TCP サーバーを起動し、束ねた TcpServerBus を返す."""
-        box: dict = {}
+        box: dict[str, Any] = {}
         ready = threading.Event()
 
         def run() -> None:

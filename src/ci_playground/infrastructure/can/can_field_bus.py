@@ -53,6 +53,8 @@ class CanFieldBus:
         if spec is None:
             raise FieldBusError(f"未登録の sensor id です: {sensor_id}")
         raw = self._wait_for(spec.broadcast_id)
+        if spec.sensor_type is None:
+            raise FieldBusError(f"sensor_type が未設定です: {sensor_id}")
         reading_cls = SENSOR_TYPE_TO_READING[spec.sensor_type]
         return reading_cls(value=raw * spec.scale)
 

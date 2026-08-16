@@ -3,6 +3,8 @@
 import json
 from datetime import datetime
 
+import redis
+
 from ci_playground.domain.reading_types import (
     READING_TO_SENSOR_TYPE,
     SENSOR_TYPE_TO_READING,
@@ -19,7 +21,7 @@ def create_key(device_id: DeviceId, sensor_id: SensorId) -> str:
 class RedisReadingRepository:
     """Reading を Redis に保存・取得する Adapter."""
 
-    def __init__(self, client) -> None:
+    def __init__(self, client: redis.Redis) -> None:
         self._client = client
 
     def save(
@@ -53,6 +55,8 @@ class RedisReadingRepository:
         rows = self._client.zrange(key, 0, 0, desc=True)
         if not rows:
             return None
-        payload = json.loads(rows[0])
+        member = rows[0]
+        assert isinstance(member, (str, bytes))
+        payload = json.loads(member)
         reading_cls = SENSOR_TYPE_TO_READING[SensorType(payload["type"])]
         return reading_cls(value=payload["value"])

@@ -60,5 +60,7 @@ class RtuFieldBus:
         )
         if result.isError():
             raise FieldBusError(f"read 失敗: {sensor_id} -> {result}")
+        if spec.sensor_type is None:
+            raise FieldBusError(f"sensor_type が未設定です: {sensor_id}")
         reading_cls = SENSOR_TYPE_TO_READING[spec.sensor_type]
         return reading_cls(value=result.registers[0] * spec.scale)
