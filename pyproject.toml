@@ -17,6 +17,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "fakeredis>=2.36.1",
+    "mypy>=2.3.0",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "respx>=0.23.1",
@@ -58,3 +59,9 @@ convention = "google"   # Google スタイル docstring
 "tests/**" = ["D"]              # テストはdocstring不要
 "**/__init__.py" = ["D104"]     # 空の __init__.py は docstring 不要
 "src/ci_playground/__init__.py" = ["D104"]
+
+[tool.mypy]
+python_version = "3.13"
+mypy_path = "src"
+strict = true
+
