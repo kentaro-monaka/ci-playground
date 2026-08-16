@@ -71,7 +71,7 @@ ci-playground/
 | 2 | ドメイン層（値オブジェクト・エンティティ・集約） | ✅完了 | 5h（実績） |
 | 3 | **アダプタ実装**（Python側 infrastructure：全外部依存を実機なしでテスト可能に） | ✅完了（7/7） | 実績に計上 |
 | 4 | アプリケーション層（ユースケース／サービス、ポート結線）＋ **構成ルート（DI / composition root）・全体配線** | ✅完了（6/6、CollectReadings/SendReadings/PublishReadings/ApplySetpointをAUX・BMS両系統に配線済み） | 実績に計上 |
-| 5 | CI品質ゲート強化（意味のあるカバレッジ※目標100%／型チェック／ミューテーションテスト）※暫定 | 🟡暫定 | 6–10h |
+| 5 | CI品質ゲート強化（意味のあるカバレッジ※目標100%／型チェック／ミューテーションテスト）※暫定 | 🔄進行中（型チェック mypy 導入済み。カバレッジ精査・ミューテーションテストは未着手） | 6–10h |
 | 6 | 時系列保存・可観測性（InfluxDB 等）※応用 | ⏸保留 | 6–10h |
 | 7 | **Web UI ＋ E2E**（nginx+PHP+JS、Playwright、境界契約テスト、ポリグロットCI）※応用 | ⏸保留 | 15–25h |
 
@@ -158,6 +158,22 @@ Modbus は**役の異なる2つのポート**として実装する（同じ `dom
 
 - 意味のあるカバレッジ（目標100%だが盲目的に追わない）・型チェック（mypy/pyright）・ミューテーションテスト。＝柱②「CI 100%チェック」の仕上げ。
 - テーマ・順序は要確認（推測で確定していない）。
+
+#### 5-A：型チェック（mypy）導入 ✅完了
+
+- `mypy`をdev依存に追加、`pyright`ではなく`mypy`を採用（Python製でuv/ruffと同じPythonエコシステムで完結するため）
+- `[tool.mypy]`に`strict = true`を設定
+- 実行コマンドは`uv run mypy -p ci_playground`（`mypy src/`ではない）。`mypy_path = "src"`と`src/`ディレクトリの直接指定を併用すると、同じファイルが`ci_playground.xxx`と`src.ci_playground.xxx`の2通りに解決され衝突するため、パッケージ名指定が必須
+- `ci.yml`に`format-check`の後段として`type-check`ステップを追加
+
+**strict初回実行で17件検出、全て修正**：
+- 型注釈の欠落（`__post_init__`の戻り値、関数引数）が大半（12件）
+- `in_memory_reading_repository.py`：`self._records = []`が`list[Any]`推論だったのが原因で、無関係に見えた`no-any-return`エラーも連鎖的に発生していた。1箇所の型注釈追加で2件同時に解消
+- `redis_reading_repository.py`：`client`引数に`redis.Redis`の型注釈を追加した**結果として新たに**`zrange`の戻り値の型不一致が検出された（`client`が無型だった間は`Any`扱いで隠れていた）。`redis.Redis.zrange`は`withscores`の値によらず常に広いUnion型で宣言されており、実行時に`str`/`bytes`であることを`assert isinstance(...)`で明示する形で対応
+- `can_field_bus.py`／`rtu_field_bus.py`：`RegisterSpec`/`FrameSpec`の`sensor_type: SensorType | None`（setpointでは未設定=None）を、sensor用の読み出しで`SENSOR_TYPE_TO_READING[spec.sensor_type]`に直接使っていたため型エラー。単なる型合わせではなく、`sensor_type`未設定のspecを誤ってsensor_registersに登録した場合の実行時バグ（`None`をdictキーに使う）を防ぐ実質的なガード（`if spec.sensor_type is None: raise FieldBusError(...)`）として対応
+- `tcp_server_bus.py`：pymodbusの`DataType`importパスが型的に未エクスポート扱い（`pymodbus.simulator.simdata`ではなく`pymodbus.simulator`から直接importする形に修正）、`server`/`loop`引数の型注釈追加、`box: dict`への型引数追加
+
+**学び**：型注釈を追加すると、その変数を使っている**別の箇所**で新たな型エラーが芋づる式に見つかることがある（`redis.Redis`の例）。型チェックは「後からまとめて」より「最初から継続的に」の方が変更の影響範囲が小さく収まる、という一般的な知見を実地で確認した。
 
 ### 保留（応用編）
 
